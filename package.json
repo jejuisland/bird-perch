@@ -22,6 +22,9 @@
     "prettier": "^3.3.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@nestjs/core", "bcrypt", "@scarf/scarf"]
+    "onlyBuiltDependencies": ["@nestjs/core", "bcrypt", "@scarf/scarf"],
+    "overrides": {
+      "react-native-worklets": "0.5.1"
+    }
   }
 }

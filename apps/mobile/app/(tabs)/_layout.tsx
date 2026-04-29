@@ -1,5 +1,4 @@
 import { Tabs } from 'expo-router';
-import { MapPin, User } from 'react-native';
 import { COLORS } from '../../constants';
 
 export default function TabsLayout() {
