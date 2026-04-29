@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { AppDataSource } from '../../data-source';
+import { AppDataSource } from '../data-source';
 import { ParkingSpotEntity } from '../parking-spots/parking-spot.entity';
 
 const seedSpots: Partial<ParkingSpotEntity>[] = [
@@ -52,6 +52,7 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
 
 async function seed() {
   await AppDataSource.initialize();
+  await AppDataSource.synchronize(); // create tables if they don't exist yet
   const repo = AppDataSource.getRepository(ParkingSpotEntity);
   for (const spot of seedSpots) {
     const exists = await repo.findOne({ where: { name: spot.name } });
