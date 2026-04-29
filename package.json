@@ -1,0 +1,23 @@
+{
+  "name": "perch",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "db:generate": "pnpm --filter @perch/api run db:generate",
+    "db:migrate": "pnpm --filter @perch/api run db:migrate",
+    "db:seed": "pnpm --filter @perch/api run db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "prettier": "^3.3.0"
+  }
+}
