@@ -27,6 +27,12 @@ export class UserEntity {
   @Column({ type: 'enum', enum: ['motorcycle', 'sedan', 'suv', 'van'], nullable: true })
   vehicleType: VehicleType | null;
 
+  @Column({ nullable: true })
+  passwordHash: string | null;
+
+  @Column({ default: false })
+  emailVerified: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

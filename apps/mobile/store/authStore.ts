@@ -7,14 +7,28 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+
+  register: (data: {
+    name: string;
+    email: string;
+    mobileNumber?: string;
+    age: number;
+    vehicleType: string;
+    password?: string;
+  }) => Promise<void>;
+
+  loginWithPassword: (email: string, password: string) => Promise<void>;
+
   sendOtp: (email: string) => Promise<void>;
   verifyOtp: (email: string, code: string) => Promise<{ isNewUser: boolean }>;
+
   completeProfile: (data: {
     name: string;
     mobileNumber: string;
     age: number;
     vehicleType: string;
   }) => Promise<void>;
+
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
 }
@@ -27,7 +41,19 @@ function clearToken() {
   delete apiClient.defaults.headers.common['Authorization'];
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+async function persistTokensAndLoadUser(
+  accessToken: string,
+  refreshToken: string,
+  set: (partial: Partial<AuthState>) => void,
+) {
+  await AsyncStorage.setItem('accessToken', accessToken);
+  await AsyncStorage.setItem('refreshToken', refreshToken);
+  setToken(accessToken);
+  const user = await usersApi.me();
+  set({ isAuthenticated: true, user });
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
@@ -49,17 +75,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  register: async (data) => {
+    await authApi.register(data);
+    // OTP is sent — caller navigates to verify-otp screen
+  },
+
+  loginWithPassword: async (email, password) => {
+    const { accessToken, refreshToken } = await authApi.loginWithPassword(email, password);
+    await persistTokensAndLoadUser(accessToken, refreshToken, set);
+  },
+
   sendOtp: async (email) => {
     await authApi.sendOtp(email);
   },
 
   verifyOtp: async (email, code) => {
     const { accessToken, refreshToken, isNewUser } = await authApi.verifyOtp(email, code);
-    await AsyncStorage.setItem('accessToken', accessToken);
-    await AsyncStorage.setItem('refreshToken', refreshToken);
-    setToken(accessToken);
-    const user = await usersApi.me();
-    set({ isAuthenticated: true, user });
+    await persistTokensAndLoadUser(accessToken, refreshToken, set);
     return { isNewUser };
   },
 

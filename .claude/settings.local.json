@@ -54,7 +54,12 @@
       "Bash(xargs ls *)",
       "Bash(ipconfig)",
       "Bash(pnpm --filter @perch/api add nodemailer)",
-      "Bash(pnpm --filter @perch/api add -D @types/nodemailer)"
+      "Bash(pnpm --filter @perch/api add -D @types/nodemailer)",
+      "Bash(cmd.exe /c \"ipconfig\")",
+      "Bash(cmd /c ipconfig)",
+      "Bash(npx eas *)",
+      "Bash(npx tsc *)",
+      "Bash(cmd *)"
     ]
   }
 }

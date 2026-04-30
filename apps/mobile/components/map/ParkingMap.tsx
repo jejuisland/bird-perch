@@ -5,6 +5,7 @@ import { ParkingSpot } from '@perch/shared';
 import { useMapStore } from '../../store/mapStore';
 import { OSM_TILE_URL, DEFAULT_REGION, COLORS } from '../../constants';
 import HeatmapLayer from './HeatmapLayer';
+import ParkingMarker from './ParkingMarker';
 
 type Coord = { latitude: number; longitude: number };
 
@@ -183,15 +184,20 @@ const ParkingMap = forwardRef<MapView, Props>(
         )}
 
         {/* Parking spot markers */}
-        {filteredSpots.map((spot) => (
-          <Marker
-            key={spot.id}
-            coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
-            onPress={() => onMarkerPress(spot)}
-            pinColor={selectedSpot?.id === spot.id ? COLORS.markerSelected : COLORS.markerDefault}
-            title={spot.name}
-          />
-        ))}
+        {filteredSpots.map((spot) => {
+          const isSelected = selectedSpot?.id === spot.id;
+          return (
+            <Marker
+              key={spot.id}
+              coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
+              onPress={() => onMarkerPress(spot)}
+              tracksViewChanges={isSelected}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <ParkingMarker selected={isSelected} />
+            </Marker>
+          );
+        })}
       </MapView>
     );
   },

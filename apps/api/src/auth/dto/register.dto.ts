@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsNumber, IsEnum, MinLength, Min, Max } from 'class-validator';
+import { IsEmail, IsString, IsNumber, IsEnum, IsOptional, MinLength, Min, Max } from 'class-validator';
 import { VehicleType } from '@perch/shared';
 
 export class RegisterDto {
@@ -8,12 +8,9 @@ export class RegisterDto {
   @IsEmail()
   email: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(8)
-  password: string;
-
-  @IsString()
-  mobileNumber: string;
+  mobileNumber?: string;
 
   @IsNumber()
   @Min(16)
@@ -22,4 +19,9 @@ export class RegisterDto {
 
   @IsEnum(['motorcycle', 'sedan', 'suv', 'van'])
   vehicleType: VehicleType;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  password?: string;
 }

@@ -17,15 +17,33 @@ import { useMapStore } from '../../store/mapStore';
 
 export default function MapScreen() {
   const { coords } = useLocation();
-  const { selectedSpot, setSelectedSpot, loadParkedCar } = useMapStore();
+  const { selectedSpot, setSelectedSpot, loadParkedCar, parkedLocation } = useMapStore();
+  const mapRef = useRef<any>(null);
+  const [mapCenter, setMapCenter] = useState(coords);
 
   useEffect(() => {
     loadParkedCar();
   }, []);
-  const mapRef = useRef<any>(null);
-  const [mapCenter, setMapCenter] = useState(coords);
 
-  useParkingSpots(mapCenter?.latitude ?? coords?.latitude ?? null, mapCenter?.longitude ?? coords?.longitude ?? null);
+  useParkingSpots(
+    mapCenter?.latitude ?? coords?.latitude ?? null,
+    mapCenter?.longitude ?? coords?.longitude ?? null,
+  );
+
+  // Auto-follow user location while navigating to a spot or back to car
+  useEffect(() => {
+    const navigating = !!selectedSpot || !!parkedLocation;
+    if (!navigating || !coords || !mapRef.current) return;
+
+    mapRef.current.animateToRegion(
+      {
+        ...coords,
+        latitudeDelta: 0.008,   // tighter zoom when navigating
+        longitudeDelta: 0.008,
+      },
+      600, // animation duration ms
+    );
+  }, [coords?.latitude, coords?.longitude]);
 
   const handleRecenter = useCallback(() => {
     if (coords && mapRef.current) {

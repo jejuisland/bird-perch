@@ -15,7 +15,7 @@ function formatSeconds(s: number) {
 }
 
 export default function VerifyOtpScreen() {
-  const { email } = useLocalSearchParams<{ email: string }>();
+  const { email, mode } = useLocalSearchParams<{ email: string; mode: 'login' | 'register' }>();
   const { sendOtp, verifyOtp } = useAuthStore();
   const router = useRouter();
 
@@ -42,10 +42,17 @@ export default function VerifyOtpScreen() {
     setLoading(true);
     try {
       const { isNewUser } = await verifyOtp(email!, code.trim());
-      if (isNewUser) {
-        router.replace('/(auth)/register');
-      } else {
+
+      if (mode === 'register') {
+        // Registration complete — profile is already filled, go straight to app
         router.replace('/(tabs)');
+      } else {
+        // Login OTP — go to tabs; AuthGuard will redirect to register if profile incomplete
+        if (isNewUser) {
+          router.replace('/(auth)/register');
+        } else {
+          router.replace('/(tabs)');
+        }
       }
     } catch (e: any) {
       const msg = e.response?.data?.message ?? 'Invalid or expired code.';
@@ -72,6 +79,8 @@ export default function VerifyOtpScreen() {
     }
   };
 
+  const isRegistration = mode === 'register';
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inner}>
@@ -79,10 +88,15 @@ export default function VerifyOtpScreen() {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>Check your email</Text>
+        <Text style={styles.title}>
+          {isRegistration ? 'Verify Your Email' : 'Check your email'}
+        </Text>
         <Text style={styles.subtitle}>
-          We sent a 6-digit code to{'\n'}
-          <Text style={styles.email}>{email}</Text>
+          {isRegistration
+            ? 'We sent a 6-digit code to confirm your registration.'
+            : 'We sent a 6-digit sign-in code to'}
+          {'\n'}
+          <Text style={styles.emailText}>{email}</Text>
         </Text>
 
         <TextInput
@@ -111,7 +125,9 @@ export default function VerifyOtpScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.btnText}>Verify</Text>
+            <Text style={styles.btnText}>
+              {isRegistration ? 'Verify & Create Account' : 'Verify'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -140,7 +156,7 @@ const styles = StyleSheet.create({
   backText: { color: COLORS.primary, fontSize: 15, fontWeight: '600' },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 32 },
-  email: { color: COLORS.text, fontWeight: '600' },
+  emailText: { color: COLORS.text, fontWeight: '600' },
   codeInput: {
     borderWidth: 2, borderColor: COLORS.primary, borderRadius: 14,
     padding: 20, fontSize: 32, fontWeight: '700', letterSpacing: 10,

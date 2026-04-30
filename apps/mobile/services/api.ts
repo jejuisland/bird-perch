@@ -16,8 +16,24 @@ apiClient.interceptors.response.use(
 );
 
 export const authApi = {
+  register: (data: {
+    name: string;
+    email: string;
+    mobileNumber?: string;
+    age: number;
+    vehicleType: string;
+    password?: string;
+  }) => apiClient.post('/auth/register', data).then((r) => r.data as { message: string }),
+
+  loginWithPassword: (email: string, password: string) =>
+    apiClient.post('/auth/login', { email, password }).then((r) => r.data as {
+      accessToken: string;
+      refreshToken: string;
+    }),
+
   sendOtp: (email: string) =>
     apiClient.post('/auth/send-otp', { email }).then((r) => r.data),
+
   verifyOtp: (email: string, code: string) =>
     apiClient.post('/auth/verify-otp', { email, code }).then((r) => r.data as {
       accessToken: string;

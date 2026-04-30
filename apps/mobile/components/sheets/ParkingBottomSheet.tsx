@@ -48,7 +48,7 @@ function getHighlights(spot: ParkingSpot): { icon: string; label: string }[] {
   if ((spot.operatingHours ?? '').toLowerCase().includes('24')) tags.push({ icon: '🕐', label: '24 Hours' });
   if (spot.status === 'usually_available') tags.push({ icon: '✅', label: 'Often Free' });
   if (spot.status === 'usually_busy') tags.push({ icon: '🔴', label: 'Often Full' });
-  if (spot.averageRating >= 4.5) tags.push({ icon: '⭐', label: 'Top Rated' });
+  if (Number(spot.averageRating ?? 0) >= 4.5) tags.push({ icon: '⭐', label: 'Top Rated' });
   if (spot.reviewCount >= 5) tags.push({ icon: '💬', label: 'Popular' });
   if (spot.totalSlots && spot.totalSlots >= 1000) tags.push({ icon: '🅿️', label: 'Large Lot' });
   return tags;
@@ -328,7 +328,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
         `📍 ${spot.address || TYPE_LABEL[spot.type]}\n` +
         `💰 ${spot.rates || 'Rate not listed'}\n` +
         `⏰ ${spot.operatingHours || 'Hours not listed'}\n` +
-        `⭐ ${spot.averageRating > 0 ? spot.averageRating.toFixed(1) : 'No ratings'}/5\n\n` +
+        `⭐ ${Number(spot.averageRating ?? 0) > 0 ? Number(spot.averageRating).toFixed(1) : 'No ratings'}/5\n\n` +
         `Shared via Perch`,
     });
   }, [spot, distance]);
@@ -383,9 +383,9 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
 
             {/* ── Rating ── */}
             <View style={styles.ratingRow}>
-              <StarRating rating={Math.round(spot.averageRating)} />
+              <StarRating rating={Math.round(Number(spot.averageRating ?? 0))} />
               <Text style={styles.ratingMeta}>
-                {spot.averageRating > 0 ? spot.averageRating.toFixed(1) : 'No ratings'}
+                {Number(spot.averageRating ?? 0) > 0 ? Number(spot.averageRating).toFixed(1) : 'No ratings'}
                 {'  ·  '}
                 {spot.reviewCount} review{spot.reviewCount !== 1 ? 's' : ''}
               </Text>
