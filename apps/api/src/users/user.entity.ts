@@ -12,23 +12,20 @@ export class UserEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  name: string;
+  @Column({ nullable: true })
+  name: string | null;
 
   @Column({ unique: true })
   email: string;
 
-  @Column()
-  passwordHash: string;
+  @Column({ nullable: true })
+  mobileNumber: string | null;
 
-  @Column()
-  mobileNumber: string;
+  @Column({ nullable: true })
+  age: number | null;
 
-  @Column()
-  age: number;
-
-  @Column({ type: 'enum', enum: ['motorcycle', 'sedan', 'suv', 'van'] })
-  vehicleType: VehicleType;
+  @Column({ type: 'enum', enum: ['motorcycle', 'sedan', 'suv', 'van'], nullable: true })
+  vehicleType: VehicleType | null;
 
   @CreateDateColumn()
   createdAt: Date;

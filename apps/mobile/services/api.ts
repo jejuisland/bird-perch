@@ -4,16 +4,11 @@ import { API_BASE_URL } from '../constants';
 
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
 
-apiClient.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     if (error.response?.status === 401) {
+      delete apiClient.defaults.headers.common['Authorization'];
       await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
     }
     return Promise.reject(error);
@@ -21,16 +16,20 @@ apiClient.interceptors.response.use(
 );
 
 export const authApi = {
-  register: (data: Parameters<typeof import('@perch/shared')['RegisterDto']>[0]) =>
-    apiClient.post('/auth/register', data).then((r) => r.data),
-  login: (data: { email: string; password: string }) =>
-    apiClient.post('/auth/login', data).then((r) => r.data),
+  sendOtp: (email: string) =>
+    apiClient.post('/auth/send-otp', { email }).then((r) => r.data),
+  verifyOtp: (email: string, code: string) =>
+    apiClient.post('/auth/verify-otp', { email, code }).then((r) => r.data as {
+      accessToken: string;
+      refreshToken: string;
+      isNewUser: boolean;
+    }),
 };
 
 export const parkingApi = {
-  getNearby: (lat: number, lng: number, radiusMeters = 5000) =>
+  getNearby: (lat: number, lng: number, radiusMeters = 5000, openNow?: boolean) =>
     apiClient
-      .get('/parking-spots', { params: { latitude: lat, longitude: lng, radiusMeters } })
+      .get('/parking-spots', { params: { latitude: lat, longitude: lng, radiusMeters, openNow } })
       .then((r) => r.data),
   getById: (id: string) => apiClient.get(`/parking-spots/${id}`).then((r) => r.data),
 };
@@ -51,10 +50,12 @@ export const heatmapApi = {
     apiClient.post('/heatmap/collect', data),
 };
 
+export const usersApi = {
+  me: () => apiClient.get('/users/me').then((r) => r.data),
+  updateMe: (data: Record<string, unknown>) => apiClient.put('/users/me', data).then((r) => r.data),
+};
+
 export const analyticsApi = {
-  track: (data: {
-    eventType: string;
-    sessionId: string;
-    metadata?: Record<string, unknown>;
-  }) => apiClient.post('/analytics/events', data).catch(() => {}), // fire-and-forget
+  track: (data: { eventType: string; sessionId: string; metadata?: Record<string, unknown> }) =>
+    apiClient.post('/analytics/events', data).catch(() => {}),
 };

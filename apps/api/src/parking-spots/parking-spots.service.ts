@@ -11,13 +11,12 @@ export class ParkingSpotsService {
     private readonly repo: Repository<ParkingSpotEntity>,
   ) {}
 
-  // Uses Haversine formula via raw SQL — PostGIS ST_DWithin is preferred but
-  // this works without the PostGIS extension for the initial MVP setup.
+  // Uses Haversine formula via raw SQL — no PostGIS required for MVP.
   async findNearby(query: NearbyQueryDto): Promise<ParkingSpotEntity[]> {
-    const { latitude, longitude, radiusMeters = 5000 } = query;
+    const { latitude, longitude, radiusMeters = 5000, openNow } = query;
     const radiusKm = radiusMeters / 1000;
 
-    return this.repo
+    const spots = await this.repo
       .createQueryBuilder('spot')
       .where(
         `(
@@ -41,6 +40,9 @@ export class ParkingSpotsService {
       )
       .limit(100)
       .getMany();
+
+    if (!openNow) return spots;
+    return spots.filter((s) => this.isCurrentlyOpen(s.operatingHours));
   }
 
   async findById(id: string): Promise<ParkingSpotEntity | null> {
@@ -54,5 +56,20 @@ export class ParkingSpotsService {
 
   async updateRatingStats(id: string, newAvg: number, newCount: number) {
     await this.repo.update(id, { averageRating: newAvg, reviewCount: newCount });
+  }
+
+  // Parses operatingHours string against current Manila time (UTC+8).
+  // Formats supported: "24h", "06:00-22:00", null/empty = assume open.
+  private isCurrentlyOpen(operatingHours: string | null): boolean {
+    if (!operatingHours || operatingHours === '24h') return true;
+
+    const match = operatingHours.match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/);
+    if (!match) return true;
+
+    const [, oh, om, ch, cm] = match.map(Number);
+    const now = new Date();
+    const manilaMinutes = (now.getUTCHours() * 60 + now.getUTCMinutes() + 8 * 60) % (24 * 60);
+
+    return manilaMinutes >= oh * 60 + om && manilaMinutes <= ch * 60 + cm;
   }
 }

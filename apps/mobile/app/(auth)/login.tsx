@@ -1,25 +1,28 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { COLORS } from '../../constants';
+import PerchLogo from '../../components/ui/PerchLogo';
 
 export default function LoginScreen() {
-  const { login } = useAuthStore();
+  const { sendOtp } = useAuthStore();
+  const router = useRouter();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) return;
+  const handleSendCode = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed.includes('@')) return Alert.alert('Enter a valid email address.');
     setLoading(true);
     try {
-      await login(email, password);
-    } catch {
-      Alert.alert('Login failed', 'Invalid email or password.');
+      await sendOtp(trimmed);
+      router.push({ pathname: '/(auth)/verify-otp', params: { email: trimmed } });
+    } catch (e: any) {
+      Alert.alert('Error', e.response?.data?.message ?? 'Could not send code. Try again.');
     } finally {
       setLoading(false);
     }
@@ -27,55 +30,56 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.logo}>Perch</Text>
-      <Text style={styles.subtitle}>Find parking, faster.</Text>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inner}>
+        <View style={styles.logoArea}>
+          <PerchLogo showTagline />
+        </View>
 
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.btnText}>Sign In</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+        <Text style={styles.title}>Sign In</Text>
+        <Text style={styles.subtitle}>
+          Enter your email and we'll send you a one-time code — no password needed.
+        </Text>
 
-      <Link href="/(auth)/register" style={styles.link}>
-        Don't have an account? <Text style={styles.linkAccent}>Sign Up</Text>
-      </Link>
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="your@email.com"
+            placeholderTextColor={COLORS.textSecondary}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            returnKeyType="send"
+            value={email}
+            onChangeText={setEmail}
+            onSubmitEditing={handleSendCode}
+            autoFocus
+          />
+          <TouchableOpacity style={styles.btn} onPress={handleSendCode} disabled={loading || !email.trim()}>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.btnText}>Get Code →</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, padding: 24, justifyContent: 'center' },
-  logo: { fontSize: 40, fontWeight: '800', color: COLORS.primary, textAlign: 'center' },
-  subtitle: { fontSize: 16, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 40 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  inner: { flex: 1, justifyContent: 'center', padding: 28 },
+  logoArea: { alignItems: 'center', marginBottom: 36 },
+  title: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 28 },
   form: { gap: 12 },
   input: {
-    borderWidth: 1, borderColor: COLORS.border, borderRadius: 10,
-    padding: 14, fontSize: 16, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 12,
+    padding: 16, fontSize: 16, color: COLORS.text, backgroundColor: COLORS.surface,
   },
   btn: {
-    backgroundColor: COLORS.primary, borderRadius: 10, padding: 16,
-    alignItems: 'center', marginTop: 8,
+    backgroundColor: COLORS.primary, borderRadius: 12, padding: 16,
+    alignItems: 'center', opacity: 1,
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  link: { textAlign: 'center', marginTop: 24, color: COLORS.textSecondary },
-  linkAccent: { color: COLORS.primary, fontWeight: '600' },
 });

@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useState } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ParkingMap from '../../components/map/ParkingMap';
@@ -7,13 +7,21 @@ import SearchBar from '../../components/ui/SearchBar';
 import AdBanner from '../../components/ui/AdBanner';
 import RecenterButton from '../../components/ui/RecenterButton';
 import HeatmapToggle from '../../components/ui/HeatmapToggle';
+import ParkHereButton from '../../components/ui/ParkHereButton';
+import MyCarPanel from '../../components/ui/MyCarPanel';
+import OpenNowToggle from '../../components/ui/OpenNowToggle';
+import RadiusSelector from '../../components/ui/RadiusSelector';
 import { useLocation } from '../../hooks/useLocation';
 import { useParkingSpots } from '../../hooks/useParkingSpots';
 import { useMapStore } from '../../store/mapStore';
 
 export default function MapScreen() {
   const { coords } = useLocation();
-  const { selectedSpot, setSelectedSpot } = useMapStore();
+  const { selectedSpot, setSelectedSpot, loadParkedCar } = useMapStore();
+
+  useEffect(() => {
+    loadParkedCar();
+  }, []);
   const mapRef = useRef<any>(null);
   const [mapCenter, setMapCenter] = useState(coords);
 
@@ -41,14 +49,29 @@ export default function MapScreen() {
       />
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
-        <SearchBar />
+        <SearchBar
+          onLocationSelect={(lat, lng) => {
+            setMapCenter({ latitude: lat, longitude: lng });
+            mapRef.current?.animateToRegion({
+              latitude: lat,
+              longitude: lng,
+              latitudeDelta: 0.015,
+              longitudeDelta: 0.015,
+            });
+          }}
+        />
         <HeatmapToggle />
+        <OpenNowToggle />
         <RecenterButton onPress={handleRecenter} />
+        <RadiusSelector />
+        <ParkHereButton userLocation={coords} />
+        <MyCarPanel userLocation={coords} />
         <AdBanner />
       </SafeAreaView>
 
       <ParkingBottomSheet
         spot={selectedSpot}
+        userLocation={coords}
         onClose={() => setSelectedSpot(null)}
       />
     </View>

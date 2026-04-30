@@ -9,7 +9,7 @@ export const DEFAULT_REGION = {
   longitudeDelta: 0.05,
 };
 
-export const SEARCH_RADIUS_METERS = 5000;
+export const SEARCH_RADIUS_METERS = 3000;
 
 export const COLORS = {
   primary: '#2563EB',

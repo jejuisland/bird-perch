@@ -13,14 +13,12 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('me')
-  async getMe(@CurrentUser() user: { sub: string }) {
-    const { passwordHash, ...result } = await this.usersService.findById(user.sub);
-    return result;
+  getMe(@CurrentUser() user: { sub: string }) {
+    return this.usersService.findById(user.sub);
   }
 
   @Put('me')
   async updateMe(@CurrentUser() user: { sub: string }, @Body() dto: UpdateUserDto) {
-    const { passwordHash, ...result } = await this.usersService.update(user.sub, dto);
-    return result;
+    return this.usersService.update(user.sub, dto);
   }
 }

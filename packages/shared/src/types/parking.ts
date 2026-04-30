@@ -6,6 +6,24 @@ export interface Coordinates {
   longitude: number;
 }
 
+export interface VehicleRate {
+  freeMinutes?: number;
+  firstHours?: number;
+  firstRate?: number;
+  succeedingRate?: number;
+  flatRate?: number;
+  flatRateWindow?: string;
+  overnightCharge?: number;
+  overnightCutoff?: string;
+}
+
+export interface DetailedRates {
+  car?: VehicleRate;
+  motorcycle?: VehicleRate;
+  van?: VehicleRate;
+  lostTicketFee?: number;
+}
+
 export interface ParkingSpot {
   id: string;
   name: string;
@@ -17,6 +35,12 @@ export interface ParkingSpot {
   averageRating: number;
   reviewCount: number;
   status: ParkingStatus;
+  address?: string;
+  contactNumber?: string;
+  totalSlots?: number;
+  detailedRates?: DetailedRates;
+  rules?: string[];
+  facilities?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -24,5 +48,5 @@ export interface ParkingSpot {
 export interface ParkingSpotNearbyQuery {
   latitude: number;
   longitude: number;
-  radiusMeters?: number; // default 5000
+  radiusMeters?: number;
 }

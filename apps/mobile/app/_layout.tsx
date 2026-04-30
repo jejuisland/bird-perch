@@ -7,7 +7,7 @@ import { useAuthStore } from '../store/authStore';
 const queryClient = new QueryClient();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, hydrate } = useAuthStore();
+  const { isAuthenticated, isLoading, user, hydrate } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -17,10 +17,26 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoading) return;
+
     const inAuth = segments[0] === '(auth)';
-    if (!isAuthenticated && !inAuth) router.replace('/(auth)/login');
-    if (isAuthenticated && inAuth) router.replace('/(tabs)');
-  }, [isAuthenticated, isLoading, segments]);
+    const profileComplete = !!user?.name;
+
+    if (!isAuthenticated && !inAuth) {
+      router.replace('/(auth)/login');
+      return;
+    }
+
+    // Authenticated + profile done → leave auth group
+    if (isAuthenticated && profileComplete && inAuth) {
+      router.replace('/(tabs)');
+      return;
+    }
+
+    // Authenticated + profile incomplete + not already on register → send to profile completion
+    if (isAuthenticated && !profileComplete && inAuth && segments[1] !== 'register' && segments[1] !== 'verify-otp') {
+      router.replace('/(auth)/register');
+    }
+  }, [isAuthenticated, isLoading, user, segments]);
 
   return <>{children}</>;
 }

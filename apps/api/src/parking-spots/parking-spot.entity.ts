@@ -5,7 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ParkingType, ParkingStatus } from '@perch/shared';
+import { ParkingType, ParkingStatus, DetailedRates } from '@perch/shared';
 
 @Entity('parking_spots')
 export class ParkingSpotEntity {
@@ -42,6 +42,24 @@ export class ParkingSpotEntity {
     default: 'unknown',
   })
   status: ParkingStatus;
+
+  @Column({ nullable: true })
+  address: string;
+
+  @Column({ nullable: true })
+  contactNumber: string;
+
+  @Column({ type: 'int', nullable: true })
+  totalSlots: number;
+
+  @Column({ type: 'json', nullable: true })
+  detailedRates: DetailedRates;
+
+  @Column({ type: 'json', nullable: true })
+  rules: string[];
+
+  @Column({ type: 'json', nullable: true })
+  facilities: string[];
 
   @CreateDateColumn()
   createdAt: Date;
