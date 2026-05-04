@@ -72,6 +72,7 @@ export default function MapScreen() {
       />
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+        {/* Search bar at top */}
         <SearchBar
           onLocationSelect={(lat, lng, label) => {
             const loc = { latitude: lat, longitude: lng };
@@ -86,11 +87,19 @@ export default function MapScreen() {
           }}
           onClear={() => setSearchedLocation(null)}
         />
-        <HeatmapToggle />
-        <OpenNowToggle />
+
+        {/* Filter chips row — flows naturally below the search bar */}
+        <View style={styles.filterRow} pointerEvents="box-none">
+          <HeatmapToggle />
+          <OpenNowToggle />
+        </View>
+
+        {/* Right-side action buttons — absolute */}
         <RecenterButton onPress={handleRecenter} />
         <RadiusSelector />
         <ParkHereButton userLocation={coords} />
+
+        {/* Bottom overlays — absolute */}
         <MyCarPanel userLocation={coords} />
         <AdBanner />
       </SafeAreaView>
@@ -109,5 +118,12 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     pointerEvents: 'box-none',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 8,
+    flexWrap: 'wrap',
   },
 });

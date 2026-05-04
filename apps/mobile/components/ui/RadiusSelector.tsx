@@ -58,7 +58,7 @@ export default function RadiusSelector() {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    bottom: 200,
+    bottom: 186,
     right: 16,
     alignItems: 'flex-end',
   },

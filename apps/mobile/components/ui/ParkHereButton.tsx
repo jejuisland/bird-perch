@@ -27,7 +27,7 @@ export default function ParkHereButton({ userLocation }: Props) {
 const styles = StyleSheet.create({
   btn: {
     position: 'absolute',
-    bottom: 152,
+    bottom: 130,
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',

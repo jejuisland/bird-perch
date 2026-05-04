@@ -213,10 +213,10 @@ const ParkingMap = forwardRef<MapView, Props>(
           const isSelected = selectedSpot?.id === spot.id;
           return (
             <Marker
-              key={spot.id}
+              key={`${spot.id}_${isSelected ? 's' : 'd'}`}
               coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
               onPress={() => onMarkerPress(spot)}
-              tracksViewChanges={isSelected}
+              tracksViewChanges={false}
               anchor={{ x: 0.5, y: 1 }}
             >
               <ParkingMarker selected={isSelected} />

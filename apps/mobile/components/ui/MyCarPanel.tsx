@@ -79,7 +79,7 @@ export default function MyCarPanel({ userLocation }: Props) {
 const styles = StyleSheet.create({
   card: {
     position: 'absolute',
-    bottom: 64,
+    bottom: 68,
     left: 12,
     right: 12,
     backgroundColor: '#FFFFFF',
