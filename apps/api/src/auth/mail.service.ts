@@ -1,40 +1,32 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
-import { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: Transporter | null = null;
+  private resend: Resend | null = null;
+  private fromAddress: string;
 
   constructor() {
-    const user = process.env.MAIL_USER;
-    const pass = process.env.MAIL_PASS;
+    const apiKey = process.env.RESEND_API_KEY;
+    this.fromAddress = process.env.MAIL_FROM ?? 'Perch <onboarding@resend.dev>';
 
-    if (user && pass) {
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        family: 4,
-        auth: { user, pass },
-      });
-      this.logger.log(`Mail service ready — sending from ${user}`);
+    if (apiKey) {
+      this.resend = new Resend(apiKey);
+      this.logger.log(`Mail service ready — sending from ${this.fromAddress}`);
     } else {
-      this.logger.warn('MAIL_USER / MAIL_PASS not set — OTP codes will be logged to console only.');
+      this.logger.warn('RESEND_API_KEY not set — OTP codes will be logged to console only.');
     }
   }
 
   async sendOtp(email: string, code: string): Promise<void> {
-    if (!this.transporter) {
+    if (!this.resend) {
       this.printToConsole(email, code);
       return;
     }
 
-    const from = process.env.MAIL_FROM ?? process.env.MAIL_USER;
-
-    await this.transporter.sendMail({
-      from,
+    await this.resend.emails.send({
+      from: this.fromAddress,
       to: email,
       subject: `${code} is your Perch verification code`,
       html: this.buildTemplate(code),
