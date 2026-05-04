@@ -1,5 +1,5 @@
 import React, { forwardRef, useState, useEffect, useRef } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import MapView, { UrlTile, Marker, Polyline, Region, Circle } from 'react-native-maps';
 import { ParkingSpot } from '@perch/shared';
 import { useMapStore } from '../../store/mapStore';
@@ -30,14 +30,17 @@ async function fetchOsrmRoute(
   return coords.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
 }
 
+type SearchedLocation = { latitude: number; longitude: number; label: string };
+
 interface Props {
   userLocation: Coord | null;
   onRegionChangeComplete: (region: Region) => void;
   onMarkerPress: (spot: ParkingSpot) => void;
+  searchedLocation?: SearchedLocation | null;
 }
 
 const ParkingMap = forwardRef<MapView, Props>(
-  ({ userLocation, onRegionChangeComplete, onMarkerPress }, ref) => {
+  ({ userLocation, onRegionChangeComplete, onMarkerPress, searchedLocation }, ref) => {
     const { parkingSpots, selectedSpot, heatmapEnabled, searchQuery, parkedLocation, radiusMeters } =
       useMapStore();
 
@@ -99,15 +102,34 @@ const ParkingMap = forwardRef<MapView, Props>(
         {/* OpenStreetMap tiles */}
         <UrlTile urlTemplate={OSM_TILE_URL} maximumZ={19} flipY={false} />
 
-        {/* Search radius circle */}
-        {userLocation && (
+        {/* Radius circle — centered on searched location when active, otherwise user location */}
+        {(searchedLocation ?? userLocation) && (
           <Circle
-            center={userLocation}
+            center={searchedLocation ?? userLocation!}
             radius={radiusMeters}
-            strokeColor="rgba(37, 99, 235, 0.25)"
+            strokeColor="rgba(37, 99, 235, 0.3)"
             strokeWidth={1.5}
-            fillColor="rgba(37, 99, 235, 0.04)"
+            fillColor="rgba(37, 99, 235, 0.05)"
           />
+        )}
+
+        {/* Search result pin */}
+        {searchedLocation && (
+          <Marker
+            coordinate={{ latitude: searchedLocation.latitude, longitude: searchedLocation.longitude }}
+            anchor={{ x: 0.5, y: 1 }}
+            tracksViewChanges={false}
+          >
+            <View style={searchPinStyles.wrapper}>
+              <View style={searchPinStyles.bubble}>
+                <Text style={searchPinStyles.icon}>🔍</Text>
+                <Text style={searchPinStyles.label} numberOfLines={1}>
+                  {searchedLocation.label}
+                </Text>
+              </View>
+              <View style={searchPinStyles.stem} />
+            </View>
+          </Marker>
         )}
 
         {/* Heatmap overlay */}
@@ -205,3 +227,44 @@ const ParkingMap = forwardRef<MapView, Props>(
 
 ParkingMap.displayName = 'ParkingMap';
 export default ParkingMap;
+
+const searchPinStyles = StyleSheet.create({
+  wrapper: {
+    alignItems: 'center',
+  },
+  bubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    maxWidth: 160,
+  },
+  icon: { fontSize: 12 },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+    flexShrink: 1,
+  },
+  stem: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: COLORS.primary,
+    marginTop: -1,
+  },
+});

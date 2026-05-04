@@ -15,19 +15,23 @@ import { useLocation } from '../../hooks/useLocation';
 import { useParkingSpots } from '../../hooks/useParkingSpots';
 import { useMapStore } from '../../store/mapStore';
 
+type SearchedLocation = { latitude: number; longitude: number; label: string };
+
 export default function MapScreen() {
   const { coords } = useLocation();
   const { selectedSpot, setSelectedSpot, loadParkedCar, parkedLocation } = useMapStore();
   const mapRef = useRef<any>(null);
   const [mapCenter, setMapCenter] = useState(coords);
+  const [searchedLocation, setSearchedLocation] = useState<SearchedLocation | null>(null);
 
   useEffect(() => {
     loadParkedCar();
   }, []);
 
+  // When user has searched a location, always fetch spots around that pin, not the scrolled map center
   useParkingSpots(
-    mapCenter?.latitude ?? coords?.latitude ?? null,
-    mapCenter?.longitude ?? coords?.longitude ?? null,
+    searchedLocation?.latitude ?? mapCenter?.latitude ?? coords?.latitude ?? null,
+    searchedLocation?.longitude ?? mapCenter?.longitude ?? coords?.longitude ?? null,
   );
 
   // Auto-follow user location while navigating to a spot or back to car
@@ -60,6 +64,7 @@ export default function MapScreen() {
       <ParkingMap
         ref={mapRef}
         userLocation={coords}
+        searchedLocation={searchedLocation}
         onRegionChangeComplete={(region) =>
           setMapCenter({ latitude: region.latitude, longitude: region.longitude })
         }
@@ -68,8 +73,10 @@ export default function MapScreen() {
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <SearchBar
-          onLocationSelect={(lat, lng) => {
-            setMapCenter({ latitude: lat, longitude: lng });
+          onLocationSelect={(lat, lng, label) => {
+            const loc = { latitude: lat, longitude: lng };
+            setSearchedLocation({ ...loc, label });
+            setMapCenter(loc);
             mapRef.current?.animateToRegion({
               latitude: lat,
               longitude: lng,
@@ -77,6 +84,7 @@ export default function MapScreen() {
               longitudeDelta: 0.015,
             });
           }}
+          onClear={() => setSearchedLocation(null)}
         />
         <HeatmapToggle />
         <OpenNowToggle />

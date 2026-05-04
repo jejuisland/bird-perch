@@ -18,10 +18,11 @@ interface NominatimResult {
 }
 
 interface Props {
-  onLocationSelect?: (latitude: number, longitude: number) => void;
+  onLocationSelect?: (latitude: number, longitude: number, label: string) => void;
+  onClear?: () => void;
 }
 
-export default function SearchBar({ onLocationSelect }: Props) {
+export default function SearchBar({ onLocationSelect, onClear }: Props) {
   const { searchQuery, setSearchQuery } = useMapStore();
   const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,17 +57,17 @@ export default function SearchBar({ onLocationSelect }: Props) {
   };
 
   const handleSelect = (item: NominatimResult) => {
-    // Use first comma-segment as the display label in the input
     const label = item.display_name.split(',')[0].trim();
     setSearchQuery(label);
     setSuggestions([]);
-    onLocationSelect?.(parseFloat(item.lat), parseFloat(item.lon));
+    onLocationSelect?.(parseFloat(item.lat), parseFloat(item.lon), label);
   };
 
   const handleClear = () => {
     setSearchQuery('');
     setSuggestions([]);
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    onClear?.();
   };
 
   return (
