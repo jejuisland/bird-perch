@@ -13,7 +13,10 @@ export class MailService {
 
     if (user && pass) {
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        family: 4,
         auth: { user, pass },
       });
       this.logger.log(`Mail service ready — sending from ${user}`);
