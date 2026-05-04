@@ -80,9 +80,12 @@ const ParkingMap = forwardRef<MapView, Props>(
         .catch(() => setWalkRoute([]));
     }, [parkedLocation?.latitude, parkedLocation?.longitude, userLocation?.latitude, userLocation?.longitude]);
 
-    const filteredSpots = searchQuery.trim()
-      ? parkingSpots.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-      : parkingSpots;
+    // When a location pin is active the API already radius-filtered the spots — show them all.
+    // Only apply the name filter when the user is typing free text with no location selected.
+    const filteredSpots =
+      searchedLocation || !searchQuery.trim()
+        ? parkingSpots
+        : parkingSpots.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const initialRegion = userLocation
       ? { ...userLocation, latitudeDelta: 0.02, longitudeDelta: 0.02 }
