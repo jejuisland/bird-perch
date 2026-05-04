@@ -59,7 +59,10 @@
       "Bash(cmd /c ipconfig)",
       "Bash(npx eas *)",
       "Bash(npx tsc *)",
-      "Bash(cmd *)"
+      "Bash(cmd *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

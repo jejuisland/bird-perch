@@ -7,8 +7,6 @@ settings:
 overrides:
   react-native-worklets: 0.5.1
 
-pnpmfileChecksum: sha256-gZZPi14VtBpA6IdLrPWmQofzcjtoQLnLGC3Wkjm2X1o=
-
 importers:
 
   .:

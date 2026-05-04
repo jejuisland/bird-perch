@@ -1,0 +1,8 @@
+[phases.install]
+cmds = ["npm install -g pnpm@10.30.0", "pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["pnpm --filter @perch/api build"]
+
+[start]
+cmd = "node apps/api/dist/main"
