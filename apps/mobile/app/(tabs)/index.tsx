@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ParkingMap from '../../components/map/ParkingMap';
+import ParkingMap, { RouteInfo } from '../../components/map/ParkingMap';
 import ParkingBottomSheet from '../../components/sheets/ParkingBottomSheet';
 import SearchBar from '../../components/ui/SearchBar';
 import AdBanner from '../../components/ui/AdBanner';
@@ -11,6 +11,7 @@ import ParkHereButton from '../../components/ui/ParkHereButton';
 import MyCarPanel from '../../components/ui/MyCarPanel';
 import OpenNowToggle from '../../components/ui/OpenNowToggle';
 import RadiusSelector from '../../components/ui/RadiusSelector';
+import NavigationBanner from '../../components/ui/NavigationBanner';
 import { useLocation } from '../../hooks/useLocation';
 import { useParkingSpots } from '../../hooks/useParkingSpots';
 import { useMapStore } from '../../store/mapStore';
@@ -23,6 +24,8 @@ export default function MapScreen() {
   const mapRef = useRef<any>(null);
   const [mapCenter, setMapCenter] = useState(coords);
   const [searchedLocation, setSearchedLocation] = useState<SearchedLocation | null>(null);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
+  const [isRerouting, setIsRerouting] = useState(false);
 
   useEffect(() => {
     loadParkedCar();
@@ -69,6 +72,8 @@ export default function MapScreen() {
           setMapCenter({ latitude: region.latitude, longitude: region.longitude })
         }
         onMarkerPress={(spot) => setSelectedSpot(spot)}
+        onRouteUpdate={(info) => setRouteInfo(info)}
+        onReroutingChange={(v) => setIsRerouting(v)}
       />
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
@@ -88,11 +93,20 @@ export default function MapScreen() {
           onClear={() => setSearchedLocation(null)}
         />
 
-        {/* Filter chips row — flows naturally below the search bar */}
-        <View style={styles.filterRow} pointerEvents="box-none">
-          <HeatmapToggle />
-          <OpenNowToggle />
-        </View>
+        {/* Navigation banner replaces filter chips while driving to a spot */}
+        {selectedSpot && routeInfo ? (
+          <NavigationBanner
+            spotName={selectedSpot.name}
+            distanceM={routeInfo.distanceM}
+            durationSec={routeInfo.durationSec}
+            isRerouting={isRerouting}
+          />
+        ) : (
+          <View style={styles.filterRow} pointerEvents="box-none">
+            <HeatmapToggle />
+            <OpenNowToggle />
+          </View>
+        )}
 
         {/* Right-side action buttons — absolute */}
         <RecenterButton onPress={handleRecenter} />
@@ -107,7 +121,7 @@ export default function MapScreen() {
       <ParkingBottomSheet
         spot={selectedSpot}
         userLocation={coords}
-        onClose={() => setSelectedSpot(null)}
+        onClose={() => { setSelectedSpot(null); setRouteInfo(null); }}
       />
     </View>
   );

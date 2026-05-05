@@ -9,14 +9,18 @@ import ParkingMarker from './ParkingMarker';
 
 type Coord = { latitude: number; longitude: number };
 
-// Fetches a road-following route from OSRM (free, no key required).
-// profile: 'driving' | 'foot' | 'cycling'
+type RouteResult = {
+  coords: Coord[];
+  distanceM: number;
+  durationSec: number;
+};
+
 async function fetchOsrmRoute(
   from: Coord,
   to: Coord,
   profile: 'driving' | 'foot' = 'driving',
   signal?: AbortSignal,
-): Promise<Coord[]> {
+): Promise<RouteResult> {
   const url =
     `https://router.project-osrm.org/route/v1/${profile}/` +
     `${from.longitude},${from.latitude};${to.longitude},${to.latitude}` +
@@ -25,22 +29,31 @@ async function fetchOsrmRoute(
   const res = await fetch(url, { signal });
   const json = await res.json();
 
-  const coords: [number, number][] = json?.routes?.[0]?.geometry?.coordinates ?? [];
-  // OSRM returns [lng, lat] — flip to { latitude, longitude }
-  return coords.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+  const route = json?.routes?.[0];
+  const rawCoords: [number, number][] = route?.geometry?.coordinates ?? [];
+
+  return {
+    coords: rawCoords.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
+    distanceM: route?.distance ?? 0,
+    durationSec: route?.duration ?? 0,
+  };
 }
 
 type SearchedLocation = { latitude: number; longitude: number; label: string };
+
+export type RouteInfo = { distanceM: number; durationSec: number };
 
 interface Props {
   userLocation: Coord | null;
   onRegionChangeComplete: (region: Region) => void;
   onMarkerPress: (spot: ParkingSpot) => void;
   searchedLocation?: SearchedLocation | null;
+  onRouteUpdate?: (info: RouteInfo | null) => void;
+  onReroutingChange?: (rerouting: boolean) => void;
 }
 
 const ParkingMap = forwardRef<MapView, Props>(
-  ({ userLocation, onRegionChangeComplete, onMarkerPress, searchedLocation }, ref) => {
+  ({ userLocation, onRegionChangeComplete, onMarkerPress, searchedLocation, onRouteUpdate, onReroutingChange }, ref) => {
     const { parkingSpots, selectedSpot, heatmapEnabled, searchQuery, parkedLocation, radiusMeters } =
       useMapStore();
 
@@ -49,23 +62,41 @@ const ParkingMap = forwardRef<MapView, Props>(
 
     const driveAbort = useRef<AbortController | null>(null);
     const walkAbort = useRef<AbortController | null>(null);
+    // Tracks which spot's initial route has been fetched — used to distinguish re-routes from first fetch
+    const routeFetchedForSpot = useRef<string | null>(null);
 
-    // Fetch driving route to selected parking spot
+    // Driving route — re-fetches on every userLocation update while a spot is selected
     useEffect(() => {
       if (!selectedSpot || !userLocation) {
         setDriveRoute([]);
+        routeFetchedForSpot.current = null;
+        onRouteUpdate?.(null);
+        onReroutingChange?.(false);
         return;
       }
 
       driveAbort.current?.abort();
       driveAbort.current = new AbortController();
 
+      // Show re-routing indicator only after the first route for this spot was already fetched
+      const isReRoute = routeFetchedForSpot.current === selectedSpot.id;
+      if (isReRoute) {
+        onReroutingChange?.(true);
+      }
+
       fetchOsrmRoute(userLocation, selectedSpot, 'driving', driveAbort.current.signal)
-        .then(setDriveRoute)
-        .catch(() => setDriveRoute([])); // fallback to nothing on error
+        .then((result) => {
+          setDriveRoute(result.coords);
+          onRouteUpdate?.({ distanceM: result.distanceM, durationSec: result.durationSec });
+          onReroutingChange?.(false);
+          routeFetchedForSpot.current = selectedSpot.id;
+        })
+        .catch(() => {
+          onReroutingChange?.(false);
+        });
     }, [selectedSpot?.id, userLocation?.latitude, userLocation?.longitude]);
 
-    // Fetch walking route back to parked car
+    // Walking route to parked car — re-fetches as user walks
     useEffect(() => {
       if (!parkedLocation || !userLocation) {
         setWalkRoute([]);
@@ -76,12 +107,10 @@ const ParkingMap = forwardRef<MapView, Props>(
       walkAbort.current = new AbortController();
 
       fetchOsrmRoute(userLocation, parkedLocation, 'foot', walkAbort.current.signal)
-        .then(setWalkRoute)
+        .then((result) => setWalkRoute(result.coords))
         .catch(() => setWalkRoute([]));
     }, [parkedLocation?.latitude, parkedLocation?.longitude, userLocation?.latitude, userLocation?.longitude]);
 
-    // When a location pin is active the API already radius-filtered the spots — show them all.
-    // Only apply the name filter when the user is typing free text with no location selected.
     const filteredSpots =
       searchedLocation || !searchQuery.trim()
         ? parkingSpots
@@ -102,10 +131,8 @@ const ParkingMap = forwardRef<MapView, Props>(
         mapType="none"
         rotateEnabled={false}
       >
-        {/* OpenStreetMap tiles */}
         <UrlTile urlTemplate={OSM_TILE_URL} maximumZ={19} flipY={false} />
 
-        {/* Radius circle — centered on searched location when active, otherwise user location */}
         {(searchedLocation ?? userLocation) && (
           <Circle
             center={searchedLocation ?? userLocation!}
@@ -116,7 +143,6 @@ const ParkingMap = forwardRef<MapView, Props>(
           />
         )}
 
-        {/* Search result pin */}
         {searchedLocation && (
           <Marker
             coordinate={{ latitude: searchedLocation.latitude, longitude: searchedLocation.longitude }}
@@ -135,28 +161,17 @@ const ParkingMap = forwardRef<MapView, Props>(
           </Marker>
         )}
 
-        {/* Heatmap overlay */}
         {heatmapEnabled && <HeatmapLayer />}
 
-        {/* ── Driving route to selected parking spot ── */}
+        {/* Driving route — old route stays visible during re-fetch */}
         {driveRoute.length > 1 && (
           <>
-            {/* White outline for contrast against OSM tiles */}
-            <Polyline
-              coordinates={driveRoute}
-              strokeColor="rgba(255,255,255,0.75)"
-              strokeWidth={8}
-            />
-            {/* Blue route */}
-            <Polyline
-              coordinates={driveRoute}
-              strokeColor={COLORS.primary}
-              strokeWidth={5}
-            />
+            <Polyline coordinates={driveRoute} strokeColor="rgba(255,255,255,0.75)" strokeWidth={8} />
+            <Polyline coordinates={driveRoute} strokeColor={COLORS.primary} strokeWidth={5} />
           </>
         )}
 
-        {/* Fallback straight line if OSRM hasn't responded yet */}
+        {/* Dashed fallback only on very first fetch (no route yet) */}
         {driveRoute.length === 0 && selectedSpot && userLocation && (
           <Polyline
             coordinates={[
@@ -169,23 +184,13 @@ const ParkingMap = forwardRef<MapView, Props>(
           />
         )}
 
-        {/* ── Walking route to parked car ── */}
         {walkRoute.length > 1 && (
           <>
-            <Polyline
-              coordinates={walkRoute}
-              strokeColor="rgba(255,255,255,0.75)"
-              strokeWidth={7}
-            />
-            <Polyline
-              coordinates={walkRoute}
-              strokeColor="#F97316"
-              strokeWidth={4}
-            />
+            <Polyline coordinates={walkRoute} strokeColor="rgba(255,255,255,0.75)" strokeWidth={7} />
+            <Polyline coordinates={walkRoute} strokeColor="#F97316" strokeWidth={4} />
           </>
         )}
 
-        {/* Fallback straight line to car while OSRM loads */}
         {walkRoute.length === 0 && parkedLocation && userLocation && (
           <Polyline
             coordinates={[
@@ -198,7 +203,6 @@ const ParkingMap = forwardRef<MapView, Props>(
           />
         )}
 
-        {/* Parked car marker */}
         {parkedLocation && (
           <Marker
             coordinate={{ latitude: parkedLocation.latitude, longitude: parkedLocation.longitude }}
@@ -208,7 +212,6 @@ const ParkingMap = forwardRef<MapView, Props>(
           />
         )}
 
-        {/* Parking spot markers */}
         {filteredSpots.map((spot) => {
           const isSelected = selectedSpot?.id === spot.id;
           return (
@@ -232,9 +235,7 @@ ParkingMap.displayName = 'ParkingMap';
 export default ParkingMap;
 
 const searchPinStyles = StyleSheet.create({
-  wrapper: {
-    alignItems: 'center',
-  },
+  wrapper: { alignItems: 'center' },
   bubble: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -253,12 +254,7 @@ const searchPinStyles = StyleSheet.create({
     maxWidth: 160,
   },
   icon: { fontSize: 12 },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primary,
-    flexShrink: 1,
-  },
+  label: { fontSize: 12, fontWeight: '700', color: COLORS.primary, flexShrink: 1 },
   stem: {
     width: 0,
     height: 0,
