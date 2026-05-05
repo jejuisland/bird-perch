@@ -4,8 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { v4 as uuidv4 } from 'uuid';
 import { requestLocationPermission, startPassiveCollection } from '../services/location';
 
-const MIN_UPDATE_DISTANCE_M = 20; // only update state when moved ≥ 20 m
-const MIN_UPDATE_INTERVAL_MS = 4_000; // and at least 4 s between updates
+const MIN_UPDATE_DISTANCE_M = 5;   // push state update when moved ≥ 5 m
+const MIN_UPDATE_INTERVAL_MS = 1_500; // and at least 1.5 s between updates
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -63,8 +63,8 @@ export function useLocation() {
       watchSub = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          timeInterval: 3_000,      // poll every 3s
-          distanceInterval: 10,     // or every 10m moved
+          timeInterval: 1_000,   // poll every 1s
+          distanceInterval: 3,   // or every 3m moved
         },
         (loc) => {
           const now = Date.now();

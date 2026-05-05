@@ -9,6 +9,16 @@ import ParkingMarker from './ParkingMarker';
 
 type Coord = { latitude: number; longitude: number };
 
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 type RouteResult = {
   coords: Coord[];
   distanceM: number;
@@ -64,15 +74,30 @@ const ParkingMap = forwardRef<MapView, Props>(
     const walkAbort = useRef<AbortController | null>(null);
     // Tracks which spot's initial route has been fetched — used to distinguish re-routes from first fetch
     const routeFetchedForSpot = useRef<string | null>(null);
+    // Position where the last OSRM drive-route was fetched from — re-fetch only when moved ≥ 10 m
+    const lastDriveFetchCoord = useRef<Coord | null>(null);
+    const REROUTE_DISTANCE_M = 10;
 
-    // Driving route — re-fetches on every userLocation update while a spot is selected
+    // Driving route — re-fetches when user moves ≥ REROUTE_DISTANCE_M from last fetch point
     useEffect(() => {
       if (!selectedSpot || !userLocation) {
         setDriveRoute([]);
         routeFetchedForSpot.current = null;
+        lastDriveFetchCoord.current = null;
         onRouteUpdate?.(null);
         onReroutingChange?.(false);
         return;
+      }
+
+      // Skip re-fetch if user hasn't moved far enough from last fetch position
+      if (lastDriveFetchCoord.current) {
+        const moved = haversineMeters(
+          lastDriveFetchCoord.current.latitude,
+          lastDriveFetchCoord.current.longitude,
+          userLocation.latitude,
+          userLocation.longitude,
+        );
+        if (moved < REROUTE_DISTANCE_M) return;
       }
 
       driveAbort.current?.abort();
@@ -84,12 +109,14 @@ const ParkingMap = forwardRef<MapView, Props>(
         onReroutingChange?.(true);
       }
 
-      fetchOsrmRoute(userLocation, selectedSpot, 'driving', driveAbort.current.signal)
+      const fetchFrom = { ...userLocation };
+      fetchOsrmRoute(fetchFrom, selectedSpot, 'driving', driveAbort.current.signal)
         .then((result) => {
           setDriveRoute(result.coords);
           onRouteUpdate?.({ distanceM: result.distanceM, durationSec: result.durationSec });
           onReroutingChange?.(false);
           routeFetchedForSpot.current = selectedSpot.id;
+          lastDriveFetchCoord.current = fetchFrom;
         })
         .catch(() => {
           onReroutingChange?.(false);
