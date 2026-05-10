@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -10,6 +10,7 @@ import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -21,9 +22,12 @@ export class AuthService {
   // ─── Registration ────────────────────────────────────────────────────────────
 
   async register(dto: RegisterDto): Promise<{ message: string }> {
+    const start = Date.now();
+    this.logger.log(`register start email=${dto.email}`);
     const existing = await this.usersService.findByEmail(dto.email);
 
     if (existing && existing.emailVerified) {
+      this.logger.warn(`register blocked email already verified email=${dto.email}`);
       throw new ConflictException('Email already registered. Please sign in.');
     }
 
@@ -37,16 +41,25 @@ export class AuthService {
     };
 
     if (dto.password) {
+      this.logger.log(`register hashing password email=${dto.email}`);
       userData.passwordHash = await bcrypt.hash(dto.password, 10);
     }
 
     if (existing) {
+      this.logger.log(`register updating existing user id=${existing.id} email=${dto.email}`);
       await this.usersService.update(existing.id, userData as any);
     } else {
+      this.logger.log(`register creating new user email=${dto.email}`);
       await this.usersService.create(userData as any);
     }
 
-    await this._generateAndSendOtp(dto.email);
+    try {
+      await this._generateAndSendOtp(dto.email);
+    } catch (err) {
+      this.logger.error(`register failed sending otp email=${dto.email}`, err as any);
+      throw err;
+    }
+    this.logger.log(`register success email=${dto.email} durationMs=${Date.now() - start}`);
     return { message: 'Verification code sent to your email.' };
   }
 

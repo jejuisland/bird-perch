@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { VehicleType } from '@perch/shared';
 import { useAuthStore } from '../../store/authStore';
 import { COLORS } from '../../constants';
+import { API_BASE_URL } from '../../constants';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -167,6 +168,12 @@ function ProfileStep({ onBack }: { onBack: () => void }) {
       });
       router.push({ pathname: '/(auth)/verify-otp', params: { email, mode: 'register' } });
     } catch (e: any) {
+      console.log('[register] failed', {
+        apiBaseUrl: API_BASE_URL,
+        status: e?.response?.status,
+        data: e?.response?.data,
+        message: e?.message,
+      });
       Alert.alert('Registration failed', e.response?.data?.message ?? 'Could not register. Try again.');
     } finally {
       setLoading(false);
