@@ -68,8 +68,18 @@ export const communityParkingApi = {
     apiClient.post('/parking-spots/community', data).then((r) => r.data as CreateCommunityParkingSpotResponse),
 };
 
+export interface ModerationQueuePage {
+  items: ModerationQueueItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 export const moderationApi = {
-  queue: () => apiClient.get('/moderation/queue').then((r) => r.data as ModerationQueueItem[]),
+  queue: (page = 1, limit = 5) =>
+    apiClient
+      .get('/moderation/queue', { params: { page, limit } })
+      .then((r) => r.data as ModerationQueuePage),
   vote: (itemId: string, approve: boolean) =>
     apiClient.post(`/moderation/items/${itemId}/vote`, { approve }).then((r) => r.data),
 };

@@ -41,8 +41,10 @@ export class ModerationService {
     return this.statsRepo.save(this.statsRepo.create({ userId, tier: 'pigeon' }));
   }
 
-  async getQueue(userId: string, limit = 20) {
-    return this.itemsRepo
+  async getQueue(userId: string, page = 1, limit = 5) {
+    const offset = (page - 1) * limit;
+
+    const qb = this.itemsRepo
       .createQueryBuilder('item')
       .where('item.status = :status', { status: 'pending' })
       .andWhere(
@@ -52,11 +54,13 @@ export class ModerationService {
         )`,
         { userId },
       )
-      // Exclude items the requesting user submitted — they cannot moderate their own.
       .andWhere('(item.submitterUserId IS NULL OR item.submitterUserId != :userId)', { userId })
-      .orderBy('item.createdAt', 'DESC')
-      .limit(limit)
-      .getMany();
+      .orderBy('item.createdAt', 'ASC');
+
+    const total = await qb.getCount();
+    const items = await qb.skip(offset).take(limit).getMany();
+
+    return { items, total, page, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   async vote(userId: string, moderationItemId: string, approve: boolean) {

@@ -26,6 +26,7 @@ import {
   moderationApi,
   uploadsApi,
   parkingApi,
+  type ModerationQueuePage,
 } from '../../services/api';
 import type { ParkingType, ParkingSpot, ModerationQueueItem, DetailedRates, VehicleRate } from '@perch/shared';
 function genId(): string {
@@ -1729,128 +1730,167 @@ const suc = StyleSheet.create({
 
 // ─── Moderation Section ───────────────────────────────────────────────────────
 
-function ModerationSection() {
-  const [voting, setVoting] = useState(false);
-  const [queueIndex, setQueueIndex] = useState(0);
+type VotingState = Record<string, boolean>;
 
-  const { data: queue, isLoading, refetch } = useQuery({
-    queryKey: ['moderation-queue'],
-    queryFn: () => moderationApi.queue(),
-    staleTime: 30_000,
-  });
-
-  const current = queue?.[queueIndex] ?? null;
-  const spot = current?.payload?.spot as
+function QueueCard({
+  item,
+  onVote,
+  voting,
+}: {
+  item: ModerationQueueItem;
+  onVote: (id: string, approve: boolean) => void;
+  voting: boolean;
+}) {
+  const spot = item.payload?.spot as
     | { name?: string; type?: string; rates?: string; operatingHours?: string }
     | undefined;
 
-  async function vote(approve: boolean) {
-    if (!current) return;
-    setVoting(true);
+  return (
+    <View style={mds.card}>
+      <View style={mds.cardTop}>
+        <View style={mds.kindPill}>
+          <Text style={mds.kindText}>{item.kind.replace(/_/g, ' ')}</Text>
+        </View>
+        <Text style={mds.submitterText}>
+          by {(item as any).submitterTier ?? 'pigeon'} contributor
+        </Text>
+      </View>
+
+      <Text style={mds.spotName}>{spot?.name ?? 'Unnamed spot'}</Text>
+      {(spot?.type || spot?.rates || spot?.operatingHours) && (
+        <Text style={mds.spotMeta}>
+          {[spot.type?.replace('_', ' '), spot.rates, spot.operatingHours]
+            .filter(Boolean)
+            .join('  ·  ')}
+        </Text>
+      )}
+
+      <View style={mds.scoreRow}>
+        <View style={[mds.scorePill, { backgroundColor: '#DCFCE7' }]}>
+          <Text style={[mds.scoreNum, { color: '#16A34A' }]}>✓  {item.approvalScore}</Text>
+        </View>
+        <View style={[mds.scorePill, { backgroundColor: '#FEE2E2' }]}>
+          <Text style={[mds.scoreNum, { color: '#DC2626' }]}>✗  {item.rejectionScore}</Text>
+        </View>
+      </View>
+
+      <View style={mds.voteRow}>
+        <TouchableOpacity
+          style={[mds.voteBtn, mds.rejectBtn]}
+          onPress={() => onVote(item.id, false)}
+          disabled={voting}
+          activeOpacity={0.8}
+        >
+          {voting ? (
+            <ActivityIndicator size="small" color="#DC2626" />
+          ) : (
+            <Text style={mds.rejectText}>✗  Reject</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[mds.voteBtn, mds.approveBtn]}
+          onPress={() => onVote(item.id, true)}
+          disabled={voting}
+          activeOpacity={0.8}
+        >
+          {voting ? (
+            <ActivityIndicator size="small" color="#16A34A" />
+          ) : (
+            <Text style={mds.approveText}>✓  Approve</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function ModerationSection() {
+  const [page, setPage] = useState(1);
+  const [votingIds, setVotingIds] = useState<VotingState>({});
+
+  const { data, isLoading, refetch, isFetching } = useQuery<ModerationQueuePage>({
+    queryKey: ['moderation-queue', page],
+    queryFn: () => moderationApi.queue(page),
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+  });
+
+  const items = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const total = data?.total ?? 0;
+
+  async function handleVote(itemId: string, approve: boolean) {
+    setVotingIds((s) => ({ ...s, [itemId]: true }));
     try {
-      await moderationApi.vote(current.id, approve);
-      const next = queueIndex + 1;
-      if (next < (queue?.length ?? 0)) {
-        setQueueIndex(next);
-      } else {
-        setQueueIndex(0);
-        await refetch();
-      }
+      await moderationApi.vote(itemId, approve);
+      await refetch();
     } catch {
       Alert.alert('Error', 'Could not cast vote. Please try again.');
     } finally {
-      setVoting(false);
+      setVotingIds((s) => ({ ...s, [itemId]: false }));
     }
   }
 
   return (
     <View style={mds.wrap}>
-      <Text style={mds.sectionTitle}>Moderation Queue</Text>
+      {/* Header row */}
+      <View style={mds.headerRow}>
+        <Text style={mds.sectionTitle}>Moderation Queue</Text>
+        {total > 0 && (
+          <Text style={mds.totalBadge}>{total} pending</Text>
+        )}
+      </View>
 
       {isLoading ? (
         <View style={mds.stateCard}>
           <ActivityIndicator color={COLORS.primary} />
           <Text style={mds.stateText}>Loading queue…</Text>
         </View>
-      ) : !current ? (
+      ) : items.length === 0 ? (
         <View style={mds.stateCard}>
           <Text style={mds.emptyIcon}>✓</Text>
           <Text style={mds.emptyTitle}>Queue is clear</Text>
           <Text style={mds.emptyBody}>No submissions pending review. Check back later.</Text>
         </View>
       ) : (
-        <View style={mds.card}>
-          {/* Kind badge + submitter */}
-          <View style={mds.cardTop}>
-            <View style={mds.kindPill}>
-              <Text style={mds.kindText}>
-                {current.kind.replace(/_/g, ' ')}
-              </Text>
-            </View>
-            <Text style={mds.submitterText}>
-              by {(current as any).submitterTier ?? 'pigeon'} contributor
-            </Text>
+        <>
+          {/* Card list */}
+          <View style={mds.list}>
+            {items.map((item) => (
+              <QueueCard
+                key={item.id}
+                item={item}
+                onVote={handleVote}
+                voting={!!votingIds[item.id]}
+              />
+            ))}
           </View>
 
-          {/* Spot name + meta */}
-          <Text style={mds.spotName}>{spot?.name ?? 'Unnamed spot'}</Text>
-          {(spot?.type || spot?.rates || spot?.operatingHours) && (
-            <Text style={mds.spotMeta}>
-              {[
-                spot.type?.replace('_', ' '),
-                spot.rates,
-                spot.operatingHours,
-              ]
-                .filter(Boolean)
-                .join('  ·  ')}
-            </Text>
-          )}
-
-          {/* Vote scores */}
-          <View style={mds.scoreRow}>
-            <View style={[mds.scorePill, { backgroundColor: '#DCFCE7' }]}>
-              <Text style={[mds.scoreNum, { color: '#16A34A' }]}>
-                ✓  {current.approvalScore}
-              </Text>
-            </View>
-            <View style={[mds.scorePill, { backgroundColor: '#FEE2E2' }]}>
-              <Text style={[mds.scoreNum, { color: '#DC2626' }]}>
-                ✗  {current.rejectionScore}
-              </Text>
-            </View>
-            <Text style={mds.queueCount}>
-              {queue?.length ?? 0} in queue
-            </Text>
-          </View>
-
-          {/* Approve / Reject */}
-          <View style={mds.voteRow}>
+          {/* Pagination controls */}
+          <View style={mds.pagination}>
             <TouchableOpacity
-              style={[mds.voteBtn, mds.rejectBtn]}
-              onPress={() => vote(false)}
-              disabled={voting}
-              activeOpacity={0.8}
+              style={[mds.pageBtn, page === 1 && mds.pageBtnDisabled]}
+              onPress={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1 || isFetching}
+              activeOpacity={0.7}
             >
-              {voting ? (
-                <ActivityIndicator size="small" color="#DC2626" />
-              ) : (
-                <Text style={mds.rejectText}>✗  Reject</Text>
-              )}
+              <Text style={[mds.pageBtnText, page === 1 && mds.pageBtnTextDisabled]}>← Prev</Text>
             </TouchableOpacity>
+
+            <Text style={mds.pageIndicator}>
+              Page {page} of {totalPages}
+            </Text>
+
             <TouchableOpacity
-              style={[mds.voteBtn, mds.approveBtn]}
-              onPress={() => vote(true)}
-              disabled={voting}
-              activeOpacity={0.8}
+              style={[mds.pageBtn, page === totalPages && mds.pageBtnDisabled]}
+              onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages || isFetching}
+              activeOpacity={0.7}
             >
-              {voting ? (
-                <ActivityIndicator size="small" color="#16A34A" />
-              ) : (
-                <Text style={mds.approveText}>✓  Approve</Text>
-              )}
+              <Text style={[mds.pageBtnText, page === totalPages && mds.pageBtnTextDisabled]}>Next →</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </>
       )}
     </View>
   );
@@ -1858,12 +1898,26 @@ function ModerationSection() {
 
 const mds = StyleSheet.create({
   wrap: { marginTop: 14 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 10,
     letterSpacing: -0.2,
+  },
+  totalBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+    backgroundColor: COLORS.primary + '18',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
   },
   stateCard: {
     backgroundColor: COLORS.surface,
@@ -1878,6 +1932,7 @@ const mds = StyleSheet.create({
   emptyIcon: { fontSize: 28, color: '#16A34A' },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   emptyBody: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 18 },
+  list: { gap: 10 },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 14,
@@ -1906,7 +1961,6 @@ const mds = StyleSheet.create({
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   scorePill: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   scoreNum: { fontWeight: '800', fontSize: 13 },
-  queueCount: { fontSize: 12, color: COLORS.textSecondary, marginLeft: 'auto' },
   voteRow: { flexDirection: 'row', gap: 10 },
   voteBtn: {
     flex: 1,
@@ -1918,6 +1972,37 @@ const mds = StyleSheet.create({
   approveBtn: { backgroundColor: '#DCFCE7' },
   rejectText: { color: '#DC2626', fontWeight: '700', fontSize: 14 },
   approveText: { color: '#16A34A', fontWeight: '700', fontSize: 14 },
+  pagination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingHorizontal: 4,
+  },
+  pageBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  pageBtnDisabled: {
+    opacity: 0.35,
+  },
+  pageBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  pageBtnTextDisabled: {
+    color: COLORS.textSecondary,
+  },
+  pageIndicator: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
 });
 
 // ─── Landing View ─────────────────────────────────────────────────────────────

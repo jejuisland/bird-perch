@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -23,8 +23,16 @@ export class ModerationController {
   ) {}
 
   @Get('queue')
-  queue(@CurrentUser() user: { sub: string }) {
-    return this.moderation.getQueue(user.sub);
+  queue(
+    @CurrentUser() user: { sub: string },
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.moderation.getQueue(
+      user.sub,
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 5,
+    );
   }
 
   // Returns all moderation items the authenticated user has submitted,
