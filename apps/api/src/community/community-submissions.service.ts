@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ContributorStatsEntity } from './entities/contributor-stats.entity';
@@ -24,6 +24,9 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
     Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+// Spots within this radius of an existing spot are considered duplicates.
+const DUPLICATE_RADIUS_METERS = 50;
 
 @Injectable()
 export class CommunitySubmissionsService {
@@ -51,6 +54,16 @@ export class CommunitySubmissionsService {
       throw new BadRequestException('At least one photo is required');
     }
 
+    // Ensure every photo path was uploaded by this user. Paths are scoped to
+    // `parking-photos/{userId}/` by the uploads service, so any other prefix
+    // indicates a path hijack attempt.
+    const expectedPrefix = `parking-photos/${userId}/`;
+    for (const path of dto.photoStoragePaths) {
+      if (!path.startsWith(expectedPrefix)) {
+        throw new BadRequestException('One or more photo paths are invalid');
+      }
+    }
+
     const stats = await this.getOrCreateStats(userId);
 
     const maxDist = tierRadiusMeters(stats.tier);
@@ -66,15 +79,34 @@ export class CommunitySubmissionsService {
       }
     }
 
-    // Resolve rates string: if detailedRates provided, auto-generate unless caller also sent a rates string
+    // Reject if an existing spot (verified or pending) already sits within
+    // DUPLICATE_RADIUS_METERS. The client-side 60m check is UX-only.
+    const nearby = await this.spotRepo
+      .createQueryBuilder('spot')
+      .where(
+        `(
+          6371000 * acos(
+            cos(radians(:lat)) * cos(radians(spot.latitude)) *
+            cos(radians(spot.longitude) - radians(:lng)) +
+            sin(radians(:lat)) * sin(radians(spot.latitude))
+          )
+        ) <= :radius`,
+        { lat: dto.latitude, lng: dto.longitude, radius: DUPLICATE_RADIUS_METERS },
+      )
+      .getOne();
+
+    if (nearby) {
+      throw new ConflictException({
+        message: 'A parking spot already exists within 50m of this location',
+        existingSpotId: nearby.id,
+      });
+    }
+
     let resolvedRates = dto.rates;
     let resolvedDetailedRates = dto.detailedRates;
 
     if (dto.detailedRates) {
-      // Always regenerate from structured data so the string stays in sync
       resolvedRates = this.rateSummary.generate(dto.detailedRates);
-
-      // Infer confidence if not already set by caller
       if (!dto.detailedRates.dataConfidence) {
         resolvedDetailedRates = {
           ...dto.detailedRates,
@@ -118,20 +150,25 @@ export class CommunitySubmissionsService {
       }),
     );
 
-    // Persist photos immediately, but leave them unapproved for moderation flow.
-    const photos = dto.photoStoragePaths.map((storagePath) => {
-      return this.photoRepo.create({
+    const photos = dto.photoStoragePaths.map((storagePath) =>
+      this.photoRepo.create({
         parkingSpotId: spot.id,
         uploadedByUserId: userId,
         storagePath,
         publicUrl: this.uploads.getPublicUrl(storagePath),
         communityApprovedAt: null,
         hiddenAt: null,
-      });
-    });
+      }),
+    );
     await this.photoRepo.save(photos);
 
     return { parkingSpotId: spot.id, moderationItemId: moderationItem.id };
   }
-}
 
+  async getMySubmissions(userId: string) {
+    return this.moderationRepo.find({
+      where: { submitterUserId: userId, kind: 'new_place' },
+      order: { createdAt: 'DESC' },
+    });
+  }
+}

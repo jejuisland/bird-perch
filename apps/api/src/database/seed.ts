@@ -26,6 +26,8 @@ const OPEN_LOT = ['CCTV', 'Security Guard'];
 
 // ─── Helper to build standard mall rate ──────────────────────────────────────
 
+const VERIFIED = { communityVerification: 'verified' as const };
+
 function mallRate(carFirst: number, carSucceeding: number, motoFirst?: number): DetailedRates {
   return {
     car: {
@@ -477,12 +479,13 @@ async function seed() {
   const repo = AppDataSource.getRepository(ParkingSpotEntity);
 
   for (const spot of seedSpots) {
+    const data = { ...VERIFIED, ...spot };
     const existing = await repo.findOne({ where: { name: spot.name } });
     if (existing) {
-      await repo.save({ ...existing, ...spot });
+      await repo.save({ ...existing, ...data });
       console.log(`Updated: ${spot.name}`);
     } else {
-      await repo.save(repo.create(spot));
+      await repo.save(repo.create(data));
       console.log(`Seeded: ${spot.name}`);
     }
   }

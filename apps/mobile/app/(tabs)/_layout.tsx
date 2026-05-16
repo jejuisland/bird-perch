@@ -5,9 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
-function tabIcon(focused: string, unfocused: string) {
+function tabIcon(focusedName: string, unfocusedName: string) {
   return ({ color, focused }: { color: string; focused: boolean }) => (
-    <Ionicons name={(focused ? focused : unfocused) as IoniconsName} size={22} color={color} />
+    <Ionicons name={(focused ? focusedName : unfocusedName) as IoniconsName} size={22} color={color} />
   );
 }
 

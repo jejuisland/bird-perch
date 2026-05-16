@@ -19,6 +19,8 @@ import { FavoritesService } from './favorites.service';
 import { FavoritesController } from './favorites.controller';
 import { ContributorStatsService } from './contributor-stats.service';
 import { ContributorStatsController } from './contributor-stats.controller';
+import { ReportsService } from './reports.service';
+import { ReportsController } from './reports.controller';
 
 @Module({
   imports: [
@@ -42,9 +44,14 @@ import { ContributorStatsController } from './contributor-stats.controller';
     AcceptanceScheduler,
     FavoritesService,
     ContributorStatsService,
+    ReportsService,
   ],
-  controllers: [ModerationController, FavoritesController, ContributorStatsController],
+  controllers: [
+    ModerationController,
+    FavoritesController,
+    ContributorStatsController,
+    ReportsController,
+  ],
   exports: [TypeOrmModule, CommunitySubmissionsService],
 })
 export class CommunityModule {}
-

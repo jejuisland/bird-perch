@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { AdminGuard } from '../common/guards/admin.guard';
 import { ParkingSpotsService } from './parking-spots.service';
 import { NearbyQueryDto } from './dto/nearby-query.dto';
 import { CreateParkingSpotDto } from './dto/create-parking-spot.dto';
@@ -29,10 +31,12 @@ export class ParkingSpotsController {
   }
 
   @Post()
+  @UseGuards(AdminGuard)
   create(@Body() dto: CreateParkingSpotDto) {
     return this.service.create(dto);
   }
 
+  @Throttle({ default: { ttl: 600000, limit: process.env.NODE_ENV === 'development' ? 1000 : 5 } })
   @Post('community')
   createCommunity(
     @CurrentUser() user: { sub: string },

@@ -6,6 +6,14 @@ import { ReviewEntity } from '../reviews/review.entity';
 import { ParkingSpotPhotoEntity } from './entities/parking-spot-photo.entity';
 import { ContributorStatsEntity } from './entities/contributor-stats.entity';
 
+// Contribution point values.
+const POINTS_REVIEW = 2;
+const POINTS_PHOTO = 3;
+
+// Tier promotion thresholds (contribution points).
+const TIER_HAWK_THRESHOLD = 50;
+const TIER_EAGLE_THRESHOLD = 200;
+
 @Injectable()
 export class AcceptanceScheduler {
   constructor(
@@ -17,7 +25,6 @@ export class AcceptanceScheduler {
     private readonly statsRepo: Repository<ContributorStatsEntity>,
   ) {}
 
-  // Runs every 15 minutes; awards acceptance after 72 hours of survival.
   @Cron('*/15 * * * *')
   async run() {
     const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
@@ -34,7 +41,7 @@ export class AcceptanceScheduler {
     if (reviewsToAccept.length) {
       for (const r of reviewsToAccept) r.acceptedAt = new Date();
       await this.reviewsRepo.save(reviewsToAccept);
-      await this.awardPointsForAcceptedReviews(reviewsToAccept.map((r) => r.userId));
+      await this.awardPoints(reviewsToAccept.map((r) => r.userId), POINTS_REVIEW, 'review');
     }
 
     const photosToAccept = await this.photosRepo
@@ -49,32 +56,36 @@ export class AcceptanceScheduler {
     if (photosToAccept.length) {
       for (const p of photosToAccept) p.communityApprovedAt = new Date();
       await this.photosRepo.save(photosToAccept);
-      await this.awardPointsForAcceptedPhotos(photosToAccept.map((p) => p.uploadedByUserId));
+      await this.awardPoints(photosToAccept.map((p) => p.uploadedByUserId), POINTS_PHOTO, 'photo');
     }
   }
 
-  private async awardPointsForAcceptedReviews(userIds: string[]) {
-    const unique = Array.from(new Set(userIds));
-    for (const userId of unique) {
-      const stats = (await this.statsRepo.findOne({ where: { userId } })) ??
-        this.statsRepo.create({ userId, tier: 'pigeon' });
-      stats.contributionPoints += 2;
-      stats.acceptedReviewsCount += 1;
-      stats.lastContributionAt = new Date();
-      await this.statsRepo.save(stats);
-    }
-  }
+  // Awards points for each accepted item individually, then promotes tier if
+  // the user's total crosses a threshold. userIds may contain duplicates — one
+  // entry per accepted item — so we tally per-user counts first.
+  private async awardPoints(userIds: string[], pointsEach: number, kind: 'review' | 'photo') {
+    const tally = new Map<string, number>();
+    for (const uid of userIds) tally.set(uid, (tally.get(uid) ?? 0) + 1);
 
-  private async awardPointsForAcceptedPhotos(userIds: string[]) {
-    const unique = Array.from(new Set(userIds));
-    for (const userId of unique) {
-      const stats = (await this.statsRepo.findOne({ where: { userId } })) ??
+    for (const [userId, count] of tally) {
+      const stats =
+        (await this.statsRepo.findOne({ where: { userId } })) ??
         this.statsRepo.create({ userId, tier: 'pigeon' });
-      stats.contributionPoints += 3;
-      stats.acceptedPhotosCount += 1;
+
+      stats.contributionPoints += pointsEach * count;
       stats.lastContributionAt = new Date();
+
+      if (kind === 'review') stats.acceptedReviewsCount += count;
+      else stats.acceptedPhotosCount += count;
+
+      // Promote tier based on cumulative points.
+      if (stats.tier === 'pigeon' && stats.contributionPoints >= TIER_HAWK_THRESHOLD) {
+        stats.tier = 'hawk';
+      } else if (stats.tier === 'hawk' && stats.contributionPoints >= TIER_EAGLE_THRESHOLD) {
+        stats.tier = 'eagle';
+      }
+
       await this.statsRepo.save(stats);
     }
   }
 }
-

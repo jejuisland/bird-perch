@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { ContributorStatsEntity } from './entities/contributor-stats.entity';
 import { ModerationItemEntity } from './entities/moderation-item.entity';
 import { ModerationVoteEntity } from './entities/moderation-vote.entity';
@@ -13,9 +13,16 @@ function tierWeight(tier: 'pigeon' | 'hawk' | 'eagle'): number {
   return 1;
 }
 
+// Thresholds for resolution. Both approval AND rejection require reaching
+// RESOLVE_THRESHOLD weighted points. Rejection additionally must lead approvals.
+// This prevents a single low-weight vote from immediately killing a submission.
+const RESOLVE_THRESHOLD = 3;
+
 @Injectable()
 export class ModerationService {
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     @InjectRepository(ContributorStatsEntity)
     private readonly statsRepo: Repository<ContributorStatsEntity>,
     @InjectRepository(ModerationItemEntity)
@@ -35,7 +42,7 @@ export class ModerationService {
   }
 
   async getQueue(userId: string, limit = 20) {
-    const qb = this.itemsRepo
+    return this.itemsRepo
       .createQueryBuilder('item')
       .where('item.status = :status', { status: 'pending' })
       .andWhere(
@@ -45,57 +52,86 @@ export class ModerationService {
         )`,
         { userId },
       )
+      // Exclude items the requesting user submitted — they cannot moderate their own.
+      .andWhere('(item.submitterUserId IS NULL OR item.submitterUserId != :userId)', { userId })
       .orderBy('item.createdAt', 'DESC')
-      .limit(limit);
-
-    return qb.getMany();
+      .limit(limit)
+      .getMany();
   }
 
   async vote(userId: string, moderationItemId: string, approve: boolean) {
     const stats = await this.getOrCreateStats(userId);
     const weight = tierWeight(stats.tier);
 
-    const item = await this.itemsRepo.findOne({ where: { id: moderationItemId } });
-    if (!item) throw new NotFoundException('Moderation item not found');
-    if (item.status !== 'pending') throw new BadRequestException('Moderation item already resolved');
+    // All reads, score updates, and resolution run inside a single serializable
+    // transaction with a row-level write lock on the moderation item. This
+    // prevents concurrent votes from corrupting the score or double-resolving.
+    const result = await this.dataSource.transaction('SERIALIZABLE', async (em) => {
+      const item = await em.findOne(ModerationItemEntity, {
+        where: { id: moderationItemId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    const existingVote = await this.votesRepo.findOne({ where: { moderationItemId, userId } });
-    if (existingVote) throw new BadRequestException('You already voted on this item');
+      if (!item) throw new NotFoundException('Moderation item not found');
+      if (item.status !== 'pending') throw new BadRequestException('Moderation item already resolved');
 
-    await this.votesRepo.save(
-      this.votesRepo.create({
-        moderationItemId,
-        userId,
-        approve,
-        weight,
-        resolvedStatus: null,
-        isCorrect: null,
-      }),
-    );
+      // Submitters cannot moderate their own submissions.
+      if (item.submitterUserId && item.submitterUserId === userId) {
+        throw new ForbiddenException('You cannot vote on your own submission');
+      }
 
-    const nextApproval = item.approvalScore + (approve ? weight : 0);
-    const nextRejection = item.rejectionScore + (!approve ? weight : 0);
+      const existingVote = await em.findOne(ModerationVoteEntity, { where: { moderationItemId, userId } });
+      if (existingVote) throw new BadRequestException('You already voted on this item');
 
-    let resolved: 'verified' | 'rejected' | null = null;
-    if (nextApproval >= 3) resolved = 'verified';
-    if (resolved === null) {
-      if (nextRejection >= nextApproval) resolved = 'rejected';
-      if (nextRejection >= 3) resolved = 'rejected';
+      await em.save(
+        em.create(ModerationVoteEntity, {
+          moderationItemId,
+          userId,
+          approve,
+          weight,
+          resolvedStatus: null,
+          isCorrect: null,
+        }),
+      );
+
+      const nextApproval = item.approvalScore + (approve ? weight : 0);
+      const nextRejection = item.rejectionScore + (!approve ? weight : 0);
+
+      // Resolution rules:
+      //   Verified  — approval score reaches threshold.
+      //   Rejected  — rejection score reaches threshold AND rejection leads approval.
+      // Both sides require RESOLVE_THRESHOLD weighted points, so no single vote
+      // (regardless of weight) can resolve an item in isolation from a cold start.
+      let resolved: 'verified' | 'rejected' | null = null;
+      if (nextApproval >= RESOLVE_THRESHOLD) {
+        resolved = 'verified';
+      } else if (nextRejection >= RESOLVE_THRESHOLD && nextRejection > nextApproval) {
+        resolved = 'rejected';
+      }
+
+      item.approvalScore = nextApproval;
+      item.rejectionScore = nextRejection;
+
+      if (resolved) {
+        item.status = resolved;
+      }
+
+      await em.save(item);
+      return { item, resolved };
+    });
+
+    // Apply side-effects outside the transaction so a slow Supabase/DB delete
+    // does not hold the row lock.
+    if (result.resolved) {
+      await this.applyResolution(result.item, result.resolved);
+      await this.scoreAccuracyAndUpdateStats(result.item.id, result.resolved);
     }
 
-    item.approvalScore = nextApproval;
-    item.rejectionScore = nextRejection;
-
-    if (resolved) {
-      item.status = resolved;
-      await this.itemsRepo.save(item);
-      await this.applyResolution(item, resolved);
-      await this.scoreAccuracyAndUpdateStats(item.id, resolved);
-    } else {
-      await this.itemsRepo.save(item);
-    }
-
-    return { status: item.status, approvalScore: item.approvalScore, rejectionScore: item.rejectionScore };
+    return {
+      status: result.item.status,
+      approvalScore: result.item.approvalScore,
+      rejectionScore: result.item.rejectionScore,
+    };
   }
 
   private async applyResolution(item: ModerationItemEntity, resolved: 'verified' | 'rejected') {
@@ -103,7 +139,6 @@ export class ModerationService {
       if (resolved === 'verified') {
         await this.spotsRepo.update(item.targetParkingSpotId, { communityVerification: 'verified' });
       } else {
-        // Keep the map clean: rejected places are removed from discovery for MVP.
         await this.photosRepo.delete({ parkingSpotId: item.targetParkingSpotId });
         await this.spotsRepo.delete(item.targetParkingSpotId);
       }
@@ -121,14 +156,13 @@ export class ModerationService {
     await this.votesRepo.save(votes);
 
     const affectedUserIds = Array.from(new Set(votes.map((v) => v.userId)));
-    for (const userId of affectedUserIds) {
-      const s = await this.getOrCreateStats(userId);
-      const total = await this.votesRepo.count({ where: { userId } });
-      const correct = await this.votesRepo.count({ where: { userId, isCorrect: true } });
+    for (const uid of affectedUserIds) {
+      const s = await this.getOrCreateStats(uid);
+      const total = await this.votesRepo.count({ where: { userId: uid } });
+      const correct = await this.votesRepo.count({ where: { userId: uid, isCorrect: true } });
       s.moderationVotesCount = total;
       s.moderationAccuracy = total ? correct / total : null;
       await this.statsRepo.save(s);
     }
   }
 }
-
