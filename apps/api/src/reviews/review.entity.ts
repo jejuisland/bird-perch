@@ -26,6 +26,12 @@ export class ReviewEntity {
   @Column({ nullable: true })
   comment: string;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  acceptedAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  hiddenAt: Date | null;
+
   @ManyToOne(() => UserEntity)
   @JoinColumn({ name: 'userId' })
   user: UserEntity;

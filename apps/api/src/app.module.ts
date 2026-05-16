@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ParkingSpotsModule } from './parking-spots/parking-spots.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { HeatmapModule } from './heatmap/heatmap.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { CommunityModule } from './community/community.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -21,6 +24,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
       autoLoadEntities: true,
       synchronize: true,
     }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     AuthModule,
     UsersModule,
@@ -28,6 +32,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
     ReviewsModule,
     HeatmapModule,
     AnalyticsModule,
+    CommunityModule,
+    UploadsModule,
   ],
 })
 export class AppModule {}

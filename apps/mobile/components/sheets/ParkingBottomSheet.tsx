@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { ParkingSpot, VehicleRate } from '@perch/shared';
-import { reviewsApi } from '../../services/api';
+import { favoritesApi, reviewsApi } from '../../services/api';
 import { COLORS } from '../../constants';
 
 interface Props {
@@ -285,6 +285,8 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
   const [newRating, setNewRating] = useState(0);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (spot) {
@@ -296,6 +298,24 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
     } else {
       sheetRef.current?.close();
     }
+  }, [spot?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!spot) {
+      setIsSaved(false);
+      return;
+    }
+    favoritesApi
+      .list()
+      .then((spots) => {
+        if (cancelled) return;
+        setIsSaved(spots.some((s) => s.id === spot.id));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [spot?.id]);
 
   const distance = useMemo(() => {
@@ -368,6 +388,11 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               <View style={styles.typeChip}>
                 <Text style={styles.typeChipText}>{TYPE_LABEL[spot.type]}</Text>
               </View>
+              {spot.communityVerification === 'unverified' ? (
+                <View style={styles.unverifiedChip}>
+                  <Text style={styles.unverifiedChipText}>Unverified</Text>
+                </View>
+              ) : null}
               <View style={[styles.statusChip, { backgroundColor: STATUS_COLOR[spot.status] + '1A' }]}>
                 <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[spot.status] }]} />
                 <Text style={[styles.statusChipText, { color: STATUS_COLOR[spot.status] }]}>
@@ -400,6 +425,28 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
                 <Text style={styles.shareBtnIcon}>⬆</Text>
                 <Text style={styles.shareBtnText}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={async () => {
+                  if (!spot || saving) return;
+                  setSaving(true);
+                  try {
+                    if (isSaved) {
+                      await favoritesApi.remove(spot.id);
+                      setIsSaved(false);
+                    } else {
+                      await favoritesApi.add(spot.id);
+                      setIsSaved(true);
+                    }
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.saveBtnIcon}>{isSaved ? '♥' : '♡'}</Text>
+                <Text style={styles.saveBtnText}>{isSaved ? 'Saved' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
 
@@ -574,6 +621,17 @@ const styles = StyleSheet.create({
   statusChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusChipText: { fontSize: 12, fontWeight: '600' },
+  unverifiedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  unverifiedChipText: { fontSize: 12, fontWeight: '700', color: '#374151' },
   slotsChip: { backgroundColor: COLORS.surface, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   slotsText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
 
@@ -593,6 +651,20 @@ const styles = StyleSheet.create({
   },
   shareBtnIcon: { fontSize: 16, color: COLORS.text, fontWeight: '700' },
   shareBtnText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
+  saveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 6,
+    backgroundColor: '#fff',
+  },
+  saveBtnIcon: { fontSize: 16, color: COLORS.text, fontWeight: '800' },
+  saveBtnText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
 
   highlightsScroll: { marginBottom: 16 },
   highlightsContent: { gap: 8 },

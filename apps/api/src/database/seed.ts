@@ -460,6 +460,7 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
     rates: '₱50 first 2h · ₱20/hr after',
     operatingHours: '10:00 AM – 10:00 PM',
     status: 'usually_available',
+    communityVerification: 'verified',
     totalSlots: 800,
     facilities: MALL_BASE,
     detailedRates: mallRate(50, 20),

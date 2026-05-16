@@ -1,6 +1,14 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants';
+import type {
+  CreateCommunityParkingSpotDto,
+  CreateCommunityParkingSpotResponse,
+  CreateUploadUrlResponse,
+  ContributorStats,
+  ModerationQueueItem,
+  ParkingSpot,
+} from '@perch/shared';
 
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
 
@@ -48,6 +56,32 @@ export const parkingApi = {
       .get('/parking-spots', { params: { latitude: lat, longitude: lng, radiusMeters, openNow } })
       .then((r) => r.data),
   getById: (id: string) => apiClient.get(`/parking-spots/${id}`).then((r) => r.data),
+};
+
+export const uploadsApi = {
+  createParkingPhotoUpload: (data: { contentType: string; fileExt?: string }) =>
+    apiClient.post('/uploads/parking-photo', data).then((r) => r.data as CreateUploadUrlResponse),
+};
+
+export const communityParkingApi = {
+  submitNewPlace: (data: CreateCommunityParkingSpotDto) =>
+    apiClient.post('/parking-spots/community', data).then((r) => r.data as CreateCommunityParkingSpotResponse),
+};
+
+export const moderationApi = {
+  queue: () => apiClient.get('/moderation/queue').then((r) => r.data as ModerationQueueItem[]),
+  vote: (itemId: string, approve: boolean) =>
+    apiClient.post(`/moderation/items/${itemId}/vote`, { approve }).then((r) => r.data),
+};
+
+export const favoritesApi = {
+  list: () => apiClient.get('/users/me/favorites').then((r) => r.data as ParkingSpot[]),
+  add: (spotId: string) => apiClient.post(`/users/me/favorites/${spotId}`).then((r) => r.data),
+  remove: (spotId: string) => apiClient.delete(`/users/me/favorites/${spotId}`).then((r) => r.data),
+};
+
+export const contributorsApi = {
+  me: () => apiClient.get('/users/me/contributor-stats').then((r) => r.data as ContributorStats),
 };
 
 export const reviewsApi = {

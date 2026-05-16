@@ -1,5 +1,6 @@
 export type ParkingType = 'street' | 'mall' | 'private_lot';
 export type ParkingStatus = 'usually_busy' | 'usually_available' | 'unknown';
+export type CommunityVerification = 'unverified' | 'verified';
 
 export interface Coordinates {
   latitude: number;
@@ -35,6 +36,8 @@ export interface ParkingSpot {
   averageRating: number;
   reviewCount: number;
   status: ParkingStatus;
+  communityVerification?: CommunityVerification;
+  submittedByUserId?: string | null;
   address?: string;
   contactNumber?: string;
   totalSlots?: number;
