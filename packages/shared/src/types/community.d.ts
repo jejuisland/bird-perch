@@ -1,4 +1,4 @@
-import type { ParkingType } from './parking';
+import type { ParkingType, DetailedRates } from './parking';
 export type ContributorTier = 'pigeon' | 'hawk' | 'eagle';
 export type ModerationItemKind = 'new_place' | 'metadata_update' | 'pin_move' | 'photo' | 'report_escalation';
 export type ModerationItemStatus = 'pending' | 'verified' | 'rejected' | 'superseded';
@@ -37,6 +37,7 @@ export interface CreateCommunityParkingSpotDto {
     longitude: number;
     type: ParkingType;
     rates?: string;
+    detailedRates?: DetailedRates;
     operatingHours?: string;
     photoStoragePaths: string[];
     submissionLatitude: number;

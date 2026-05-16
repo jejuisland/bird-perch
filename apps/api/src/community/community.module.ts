@@ -8,6 +8,7 @@ import { ParkingSpotPhotoEntity } from './entities/parking-spot-photo.entity';
 import { ReportEntity } from './entities/report.entity';
 import { ReviewHelpfulVoteEntity } from './entities/review-helpful-vote.entity';
 import { CommunitySubmissionsService } from './community-submissions.service';
+import { RateSummaryService } from './rate-summary.service';
 import { ParkingSpotEntity } from '../parking-spots/parking-spot.entity';
 import { UploadsModule } from '../uploads/uploads.module';
 import { ModerationService } from './moderation.service';
@@ -36,6 +37,7 @@ import { ContributorStatsController } from './contributor-stats.controller';
   ],
   providers: [
     CommunitySubmissionsService,
+    RateSummaryService,
     ModerationService,
     AcceptanceScheduler,
     FavoritesService,

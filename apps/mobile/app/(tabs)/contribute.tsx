@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Dimensions,
   Platform,
   KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
@@ -26,8 +27,10 @@ import {
   uploadsApi,
   parkingApi,
 } from '../../services/api';
-import type { ParkingType, ParkingSpot, ModerationQueueItem } from '@perch/shared';
-import { v4 as uuidv4 } from 'uuid';
+import type { ParkingType, ParkingSpot, ModerationQueueItem, DetailedRates, VehicleRate } from '@perch/shared';
+function genId(): string {
+  return Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+}
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -436,6 +439,494 @@ const ls = StyleSheet.create({
   okText: { fontSize: 14, fontWeight: '700', color: '#16A34A' },
 });
 
+// ─── Rate Builder Sheet ───────────────────────────────────────────────────────
+
+type VehicleTab = 'car' | 'motorcycle' | 'van';
+
+type LocalVehicleRate = {
+  mode: 'tiered' | 'flat';
+  freeMinutes: string;
+  firstHours: string;
+  firstRate: string;
+  succeedingRate: string;
+  flatRate: string;
+  flatWindowStart: string;
+  flatWindowEnd: string;
+  overnightEnabled: boolean;
+  overnightCharge: string;
+  overnightWindowStart: string;
+  overnightWindowEnd: string;
+  minimumCharge: string;
+};
+
+const VEHICLE_DEFAULTS: Record<VehicleTab, LocalVehicleRate> = {
+  car: {
+    mode: 'tiered', freeMinutes: '', firstHours: '2', firstRate: '',
+    succeedingRate: '', flatRate: '', flatWindowStart: '06:00', flatWindowEnd: '01:30',
+    overnightEnabled: false, overnightCharge: '', overnightWindowStart: '01:30',
+    overnightWindowEnd: '06:00', minimumCharge: '',
+  },
+  motorcycle: {
+    mode: 'flat', freeMinutes: '', firstHours: '2', firstRate: '',
+    succeedingRate: '', flatRate: '', flatWindowStart: '06:00', flatWindowEnd: '01:30',
+    overnightEnabled: false, overnightCharge: '', overnightWindowStart: '01:30',
+    overnightWindowEnd: '06:00', minimumCharge: '',
+  },
+  van: {
+    mode: 'tiered', freeMinutes: '', firstHours: '2', firstRate: '',
+    succeedingRate: '', flatRate: '', flatWindowStart: '06:00', flatWindowEnd: '01:30',
+    overnightEnabled: false, overnightCharge: '', overnightWindowStart: '01:30',
+    overnightWindowEnd: '06:00', minimumCharge: '',
+  },
+};
+
+function isRateConfigured(r: LocalVehicleRate): boolean {
+  if (r.mode === 'tiered') return !!r.firstRate || !!r.succeedingRate;
+  return !!r.flatRate;
+}
+
+function localRateToVehicleRate(r: LocalVehicleRate): VehicleRate {
+  const out: VehicleRate = {};
+  if (r.freeMinutes) out.freeMinutes = Number(r.freeMinutes);
+  if (r.minimumCharge) out.minimumCharge = Number(r.minimumCharge);
+
+  if (r.mode === 'flat') {
+    if (r.flatRate) out.flatRate = Number(r.flatRate);
+    if (r.flatWindowStart) out.flatRateWindowStart = r.flatWindowStart;
+    if (r.flatWindowEnd) out.flatRateWindowEnd = r.flatWindowEnd;
+  } else {
+    if (r.firstHours) out.firstHours = Number(r.firstHours);
+    if (r.firstRate) out.firstRate = Number(r.firstRate);
+    if (r.succeedingRate) out.succeedingRate = Number(r.succeedingRate);
+  }
+
+  if (r.overnightEnabled && r.overnightCharge) {
+    out.overnightCharge = Number(r.overnightCharge);
+    if (r.overnightWindowStart) out.overnightWindowStart = r.overnightWindowStart;
+    if (r.overnightWindowEnd) out.overnightWindowEnd = r.overnightWindowEnd;
+  }
+
+  return out;
+}
+
+function RateVehicleForm({
+  rate,
+  onChange,
+}: {
+  rate: LocalVehicleRate;
+  onChange: (r: LocalVehicleRate) => void;
+}) {
+  function set(patch: Partial<LocalVehicleRate>) {
+    onChange({ ...rate, ...patch });
+  }
+
+  const inputStyle = [rb.input];
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Mode toggle */}
+      <View>
+        <Text style={rb.fieldLabel}>Rate Type</Text>
+        <SegmentedToggle
+          options={[
+            { label: 'First hour tier', value: 'tiered' },
+            { label: 'Flat rate', value: 'flat' },
+          ]}
+          value={rate.mode}
+          onChange={(v) => set({ mode: v as 'tiered' | 'flat' })}
+        />
+      </View>
+
+      {/* Free minutes */}
+      <View>
+        <Text style={rb.fieldLabel}>Free First (optional)</Text>
+        <View style={rb.rowInput}>
+          <TextInput
+            style={[inputStyle, { flex: 1 }]}
+            value={rate.freeMinutes}
+            onChangeText={(t) => set({ freeMinutes: t.replace(/\D/g, '') })}
+            placeholder="0"
+            placeholderTextColor={COLORS.textSecondary}
+            keyboardType="number-pad"
+          />
+          <Text style={rb.unit}>min free</Text>
+        </View>
+      </View>
+
+      {rate.mode === 'tiered' ? (
+        <>
+          {/* First tier */}
+          <View>
+            <Text style={rb.fieldLabel}>First Tier Rate</Text>
+            <View style={rb.rowInput}>
+              <Text style={rb.peso}>₱</Text>
+              <TextInput
+                style={[inputStyle, { flex: 1 }]}
+                value={rate.firstRate}
+                onChangeText={(t) => set({ firstRate: t.replace(/[^0-9.]/g, '') })}
+                placeholder="60"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="decimal-pad"
+              />
+              <Text style={rb.unit}>for first</Text>
+              <TextInput
+                style={[inputStyle, { width: 48 }]}
+                value={rate.firstHours}
+                onChangeText={(t) => set({ firstHours: t.replace(/\D/g, '') })}
+                placeholder="2"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="number-pad"
+              />
+              <Text style={rb.unit}>hr</Text>
+            </View>
+          </View>
+
+          {/* Succeeding rate */}
+          <View>
+            <Text style={rb.fieldLabel}>Then Per Hour</Text>
+            <View style={rb.rowInput}>
+              <Text style={rb.peso}>₱</Text>
+              <TextInput
+                style={[inputStyle, { flex: 1 }]}
+                value={rate.succeedingRate}
+                onChangeText={(t) => set({ succeedingRate: t.replace(/[^0-9.]/g, '') })}
+                placeholder="30"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="decimal-pad"
+              />
+              <Text style={rb.unit}>/ hr after</Text>
+            </View>
+          </View>
+        </>
+      ) : (
+        <>
+          {/* Flat rate */}
+          <View>
+            <Text style={rb.fieldLabel}>Flat Rate</Text>
+            <View style={rb.rowInput}>
+              <Text style={rb.peso}>₱</Text>
+              <TextInput
+                style={[inputStyle, { flex: 1 }]}
+                value={rate.flatRate}
+                onChangeText={(t) => set({ flatRate: t.replace(/[^0-9.]/g, '') })}
+                placeholder="50"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="decimal-pad"
+              />
+              <Text style={rb.unit}>flat</Text>
+            </View>
+          </View>
+
+          {/* Flat window */}
+          <View>
+            <Text style={rb.fieldLabel}>Applies From / To (24h)</Text>
+            <View style={rb.rowInput}>
+              <TextInput
+                style={[inputStyle, { width: 72 }]}
+                value={rate.flatWindowStart}
+                onChangeText={(t) => set({ flatWindowStart: t })}
+                placeholder="06:00"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+              <Text style={rb.unit}>to</Text>
+              <TextInput
+                style={[inputStyle, { width: 72 }]}
+                value={rate.flatWindowEnd}
+                onChangeText={(t) => set({ flatWindowEnd: t })}
+                placeholder="01:30"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+            </View>
+          </View>
+        </>
+      )}
+
+      {/* Overnight */}
+      <View style={rb.sectionDivider} />
+      <View>
+        <View style={rb.toggleRow}>
+          <Text style={rb.fieldLabel}>Overnight Surcharge</Text>
+          <TouchableOpacity
+            style={[rb.togglePill, rate.overnightEnabled && rb.togglePillOn]}
+            onPress={() => set({ overnightEnabled: !rate.overnightEnabled })}
+            activeOpacity={0.75}
+          >
+            <Text style={[rb.toggleText, rate.overnightEnabled && rb.toggleTextOn]}>
+              {rate.overnightEnabled ? 'On' : 'Off'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {rate.overnightEnabled && (
+          <View style={{ gap: 10, marginTop: 10 }}>
+            <View style={rb.rowInput}>
+              <Text style={rb.peso}>₱</Text>
+              <TextInput
+                style={[inputStyle, { flex: 1 }]}
+                value={rate.overnightCharge}
+                onChangeText={(t) => set({ overnightCharge: t.replace(/[^0-9.]/g, '') })}
+                placeholder="300"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="decimal-pad"
+              />
+              <Text style={rb.unit}>overnight</Text>
+            </View>
+            <View style={rb.rowInput}>
+              <Text style={rb.unit}>from</Text>
+              <TextInput
+                style={[inputStyle, { width: 72 }]}
+                value={rate.overnightWindowStart}
+                onChangeText={(t) => set({ overnightWindowStart: t })}
+                placeholder="01:30"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+              <Text style={rb.unit}>to</Text>
+              <TextInput
+                style={[inputStyle, { width: 72 }]}
+                value={rate.overnightWindowEnd}
+                onChangeText={(t) => set({ overnightWindowEnd: t })}
+                placeholder="06:00"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Minimum charge */}
+      <View>
+        <Text style={rb.fieldLabel}>Minimum Charge (optional)</Text>
+        <View style={rb.rowInput}>
+          <Text style={rb.peso}>₱</Text>
+          <TextInput
+            style={[inputStyle, { flex: 1 }]}
+            value={rate.minimumCharge}
+            onChangeText={(t) => set({ minimumCharge: t.replace(/[^0-9.]/g, '') })}
+            placeholder="0"
+            placeholderTextColor={COLORS.textSecondary}
+            keyboardType="decimal-pad"
+          />
+          <Text style={rb.unit}>minimum</Text>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+function RateBuilderSheet({
+  visible,
+  onClose,
+  onApply,
+  spotType,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onApply: (rates: { car?: VehicleRate; motorcycle?: VehicleRate; van?: VehicleRate; lostTicketFee?: number; penaltyNotes?: string; notes?: string }) => void;
+  spotType: ParkingType;
+}) {
+  const [activeTab, setActiveTab] = useState<VehicleTab>('car');
+  const [carRate, setCarRate] = useState<LocalVehicleRate>({ ...VEHICLE_DEFAULTS.car });
+  const [motoRate, setMotoRate] = useState<LocalVehicleRate>({ ...VEHICLE_DEFAULTS.motorcycle });
+  const [vanRate, setVanRate] = useState<LocalVehicleRate>({ ...VEHICLE_DEFAULTS.van });
+  const [lostTicket, setLostTicket] = useState('');
+  const [notes, setNotes] = useState('');
+  const [penaltiesOpen, setPenaltiesOpen] = useState(false);
+
+  // Apply smart defaults when spot type changes
+  useEffect(() => {
+    if (spotType === 'mall') {
+      setCarRate((r) => ({ ...r, mode: 'tiered', firstHours: '2', overnightEnabled: true, overnightWindowStart: '01:30', overnightWindowEnd: '06:00' }));
+      setMotoRate((r) => ({ ...r, mode: 'flat' }));
+    } else if (spotType === 'private_lot') {
+      setCarRate((r) => ({ ...r, mode: 'flat' }));
+      setMotoRate((r) => ({ ...r, mode: 'flat' }));
+    }
+  }, [spotType]);
+
+  function handleApply() {
+    const result: Parameters<typeof onApply>[0] = {};
+    if (isRateConfigured(carRate)) result.car = localRateToVehicleRate(carRate);
+    if (isRateConfigured(motoRate)) result.motorcycle = localRateToVehicleRate(motoRate);
+    if (isRateConfigured(vanRate)) result.van = localRateToVehicleRate(vanRate);
+    if (lostTicket) result.lostTicketFee = Number(lostTicket);
+    if (notes) result.notes = notes;
+    onApply(result);
+  }
+
+  const tabs: { key: VehicleTab; label: string; rate: LocalVehicleRate }[] = [
+    { key: 'car', label: 'Car', rate: carRate },
+    { key: 'motorcycle', label: 'Moto', rate: motoRate },
+    { key: 'van', label: 'Van', rate: vanRate },
+  ];
+
+  const activeRate = activeTab === 'car' ? carRate : activeTab === 'motorcycle' ? motoRate : vanRate;
+  const setActiveRate = activeTab === 'car' ? setCarRate : activeTab === 'motorcycle' ? setMotoRate : setVanRate;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={rb.sheet} edges={['top']}>
+        {/* Header */}
+        <View style={rb.sheetHeader}>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={rb.sheetCancel}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={rb.sheetTitle}>Detailed Rates</Text>
+          <TouchableOpacity onPress={handleApply} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={rb.sheetDone}>Done</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Vehicle tabs */}
+        <View style={rb.tabRow}>
+          {tabs.map(({ key, label, rate }) => (
+            <TouchableOpacity
+              key={key}
+              style={[rb.tab, activeTab === key && rb.tabActive]}
+              onPress={() => setActiveTab(key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[rb.tabLabel, activeTab === key && rb.tabLabelActive]}>
+                {isRateConfigured(rate) ? '● ' : '○ '}{label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Vehicle form */}
+        <View style={{ flex: 1 }}>
+          <RateVehicleForm rate={activeRate} onChange={setActiveRate} />
+        </View>
+
+        {/* Penalties section */}
+        <View style={rb.penaltiesWrap}>
+          <TouchableOpacity
+            style={rb.penaltiesHeader}
+            onPress={() => setPenaltiesOpen((o) => !o)}
+            activeOpacity={0.75}
+          >
+            <Text style={rb.penaltiesTitle}>
+              {penaltiesOpen ? '▼' : '+'} Penalties & Notes
+            </Text>
+          </TouchableOpacity>
+          {penaltiesOpen && (
+            <View style={rb.penaltiesBody}>
+              <View style={rb.rowInput}>
+                <Text style={rb.unit}>Lost ticket ₱</Text>
+                <TextInput
+                  style={[rb.input, { flex: 1 }]}
+                  value={lostTicket}
+                  onChangeText={(t) => setLostTicket(t.replace(/\D/g, ''))}
+                  placeholder="500"
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="number-pad"
+                />
+              </View>
+              <TextInput
+                style={[rb.input, { minHeight: 60 }]}
+                value={notes}
+                onChangeText={setNotes}
+                placeholder='e.g. "Free 2hr with ₱500 spend at SM Cinemas"'
+                placeholderTextColor={COLORS.textSecondary}
+                multiline
+              />
+            </View>
+          )}
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const rb = StyleSheet.create({
+  sheet: { flex: 1, backgroundColor: COLORS.background },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  sheetTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text },
+  sheetCancel: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '600' },
+  sheetDone: { fontSize: 15, color: COLORS.primary, fontWeight: '700' },
+  tabRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingHorizontal: 16,
+    gap: 4,
+    paddingTop: 10,
+  },
+  tab: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 8,
+    marginBottom: -1,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: { borderBottomColor: COLORS.primary },
+  tabLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  tabLabelActive: { color: COLORS.primary, fontWeight: '700' },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 7,
+  },
+  input: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  rowInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  peso: { fontSize: 17, fontWeight: '700', color: COLORS.text },
+  unit: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
+  sectionDivider: { height: 1, backgroundColor: COLORS.border },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  togglePill: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  togglePillOn: { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary },
+  toggleText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
+  toggleTextOn: { color: COLORS.primary },
+  penaltiesWrap: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  penaltiesHeader: { paddingHorizontal: 18, paddingVertical: 13 },
+  penaltiesTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
+  penaltiesBody: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+});
+
 // ─── Step 1: Details ──────────────────────────────────────────────────────────
 
 const TYPE_OPTIONS: { value: ParkingType; label: string; desc: string }[] = [
@@ -449,6 +940,7 @@ function DetailsStep({
   type, setType,
   isPaid, setIsPaid,
   hourlyRate, setHourlyRate,
+  detailedRates, setDetailedRates,
   is24Hours, setIs24Hours,
   openTime, setOpenTime,
   closeTime, setCloseTime,
@@ -459,14 +951,17 @@ function DetailsStep({
   type: ParkingType; setType: (v: ParkingType) => void;
   isPaid: boolean; setIsPaid: (v: boolean) => void;
   hourlyRate: string; setHourlyRate: (v: string) => void;
+  detailedRates: DetailedRates | null; setDetailedRates: (v: DetailedRates | null) => void;
   is24Hours: boolean; setIs24Hours: (v: boolean) => void;
   openTime: string; setOpenTime: (v: string) => void;
   closeTime: string; setCloseTime: (v: string) => void;
   landmark: string; setLandmark: (v: string) => void;
   onBack: () => void; onNext: () => void;
 }) {
+  const [rateBuilderVisible, setRateBuilderVisible] = useState(false);
   const canNext = name.trim().length >= 2;
   const showNameHint = name.trim().length > 0 && name.trim().length < 2;
+  const hasDetailedRates = detailedRates && (detailedRates.car || detailedRates.motorcycle || detailedRates.van);
 
   return (
     <KeyboardAvoidingView
@@ -534,18 +1029,41 @@ function DetailsStep({
             onChange={(v) => setIsPaid(v === 'paid')}
           />
           {isPaid && (
-            <View style={ds.rateRow}>
-              <Text style={ds.ratePrefix}>₱</Text>
-              <TextInput
-                style={[ds.input, ds.rateInput]}
-                value={hourlyRate}
-                onChangeText={(t) => setHourlyRate(t.replace(/[^0-9.]/g, ''))}
-                placeholder="0"
-                placeholderTextColor={COLORS.textSecondary}
-                keyboardType="decimal-pad"
+            <>
+              <View style={ds.rateRow}>
+                <Text style={ds.ratePrefix}>₱</Text>
+                <TextInput
+                  style={[ds.input, ds.rateInput]}
+                  value={hourlyRate}
+                  onChangeText={(t) => setHourlyRate(t.replace(/[^0-9.]/g, ''))}
+                  placeholder="0"
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={ds.rateSuffix}>per hour</Text>
+              </View>
+
+              {/* Detailed rates CTA */}
+              <TouchableOpacity
+                style={[ds.detailedRatesCta, hasDetailedRates && ds.detailedRatesCtaActive]}
+                onPress={() => setRateBuilderVisible(true)}
+                activeOpacity={0.75}
+              >
+                <Text style={[ds.detailedRatesCtaText, hasDetailedRates && ds.detailedRatesCtaTextActive]}>
+                  {hasDetailedRates ? '✓  Detailed rates configured  ›' : '+ Add detailed rates  ›'}
+                </Text>
+              </TouchableOpacity>
+
+              <RateBuilderSheet
+                visible={rateBuilderVisible}
+                onClose={() => setRateBuilderVisible(false)}
+                onApply={(rates) => {
+                  setDetailedRates(Object.keys(rates).length > 0 ? rates : null);
+                  setRateBuilderVisible(false);
+                }}
+                spotType={type}
               />
-              <Text style={ds.rateSuffix}>per hour</Text>
-            </View>
+            </>
           )}
         </View>
 
@@ -656,6 +1174,27 @@ const ds = StyleSheet.create({
   rateInput: { flex: 1, marginBottom: 0 },
   ratePrefix: { fontSize: 20, fontWeight: '700', color: COLORS.text, width: 20 },
   rateSuffix: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
+  detailedRatesCta: {
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+  },
+  detailedRatesCtaActive: {
+    borderStyle: 'solid',
+    borderColor: COLORS.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  detailedRatesCtaText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  detailedRatesCtaTextActive: { color: COLORS.primary },
   hoursRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -683,12 +1222,14 @@ function PhotosStep({
   photos,
   onAddPhotos,
   onRemovePhoto,
+  onRetryPhoto,
   onBack,
   onNext,
 }: {
   photos: PhotoItem[];
   onAddPhotos: () => void;
   onRemovePhoto: (id: string) => void;
+  onRetryPhoto: (id: string) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -750,9 +1291,14 @@ function PhotosStep({
                 )}
 
                 {photo.error && (
-                  <View style={[ps.overlay, ps.overlayError]}>
-                    <Text style={ps.errorMark}>!</Text>
-                  </View>
+                  <TouchableOpacity
+                    style={[ps.overlay, ps.overlayError]}
+                    onPress={() => onRetryPhoto(photo.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={ps.errorMark}>↺</Text>
+                    <Text style={ps.retryLabel}>Retry</Text>
+                  </TouchableOpacity>
                 )}
 
                 {!photo.uploading && (
@@ -797,7 +1343,7 @@ function PhotosStep({
         {hasError && (
           <View style={ps.errorBanner}>
             <Text style={ps.errorBannerText}>
-              Some photos failed to upload. Remove the red ones and try again.
+              Some photos failed to upload. Tap a red photo to retry, or remove it.
             </Text>
           </View>
         )}
@@ -859,7 +1405,8 @@ const ps = StyleSheet.create({
     justifyContent: 'center',
   },
   overlayError: { backgroundColor: 'rgba(220,38,38,0.72)' },
-  errorMark: { color: '#fff', fontSize: 24, fontWeight: '800' },
+  errorMark: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  retryLabel: { color: '#fff', fontSize: 9, fontWeight: '700', marginTop: 1 },
   removeBtn: {
     position: 'absolute',
     top: 5,
@@ -926,20 +1473,27 @@ const ps = StyleSheet.create({
 
 function ConfirmStep({
   pinCoord,
-  name, type, isPaid, hourlyRate,
+  name, type, isPaid, hourlyRate, detailedRates,
   is24Hours, openTime, closeTime, landmark,
   photos, submitting,
   onBack, onSubmit,
 }: {
   pinCoord: Coord;
   name: string; type: ParkingType;
-  isPaid: boolean; hourlyRate: string;
+  isPaid: boolean; hourlyRate: string; detailedRates: DetailedRates | null;
   is24Hours: boolean; openTime: string; closeTime: string;
   landmark: string; photos: PhotoItem[];
   submitting: boolean; onBack: () => void; onSubmit: () => void;
 }) {
   const readyPhotos = photos.filter((p) => p.storagePath && !p.error);
-  const costLabel = isPaid ? (hourlyRate ? `₱${hourlyRate} / hour` : 'Paid (rate TBC)') : 'Free';
+  const hasDetailedBreakdown = detailedRates && (detailedRates.car || detailedRates.motorcycle || detailedRates.van);
+  const costLabel = !isPaid
+    ? 'Free'
+    : hasDetailedBreakdown
+    ? 'Paid (detailed rates set)'
+    : hourlyRate
+    ? `₱${hourlyRate} / hour`
+    : 'Paid (rate TBC)';
   const hoursLabel = is24Hours ? '24 hours' : `${openTime} – ${closeTime}`;
 
   const rows: { label: string; value: string }[] = [
@@ -1444,6 +1998,7 @@ export default function ContributeScreen() {
   const [type, setType] = useState<ParkingType>('street');
   const [isPaid, setIsPaid] = useState(false);
   const [hourlyRate, setHourlyRate] = useState('');
+  const [detailedRates, setDetailedRates] = useState<DetailedRates | null>(null);
   const [is24Hours, setIs24Hours] = useState(true);
   const [openTime, setOpenTime] = useState('7:00 AM');
   const [closeTime, setCloseTime] = useState('10:00 PM');
@@ -1483,6 +2038,7 @@ export default function ContributeScreen() {
     setType('street');
     setIsPaid(false);
     setHourlyRate('');
+    setDetailedRates(null);
     setIs24Hours(true);
     setOpenTime('7:00 AM');
     setCloseTime('10:00 PM');
@@ -1493,64 +2049,91 @@ export default function ContributeScreen() {
   }
 
   async function handleAddPhotos() {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        'Permission Required',
-        'Please allow photo library access in Settings to add photos.',
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please allow photo library access in Settings to add photos.',
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'] as any,
+        allowsMultipleSelection: true,
+        quality: 0.85,
+      });
+
+      if (!result.assets?.length) return;
+
+      const newItems: PhotoItem[] = result.assets.map((asset) => ({
+        id: genId(),
+        uri: asset.uri,
+        storagePath: null,
+        uploading: true,
+        error: false,
+      }));
+
+      setPhotos((prev) => [...prev, ...newItems]);
+
+      // Upload all in parallel — each photo's success/failure is independent
+      await Promise.all(
+        newItems.map(async (item) => {
+          try {
+            const { uploadUrl, storagePath } = await uploadsApi.createParkingPhotoUpload({
+              contentType: 'image/jpeg',
+              fileExt: 'jpg',
+            });
+            await uploadAsync(uploadUrl, item.uri, {
+              httpMethod: 'PUT',
+              uploadType: FileSystemUploadType.BINARY_CONTENT,
+              headers: { 'Content-Type': 'image/jpeg' },
+            });
+            setPhotos((prev) =>
+              prev.map((p) =>
+                p.id === item.id ? { ...p, storagePath, uploading: false } : p,
+              ),
+            );
+          } catch (uploadErr: any) {
+            console.warn('Photo upload failed:', uploadErr?.message ?? uploadErr);
+            setPhotos((prev) =>
+              prev.map((p) =>
+                p.id === item.id ? { ...p, uploading: false, error: true } : p,
+              ),
+            );
+          }
+        }),
       );
-      return;
+    } catch (err: any) {
+      console.error('handleAddPhotos error:', err);
+      Alert.alert('Could not open photos', err?.message ?? 'Something went wrong. Please try again.');
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 0.85,
-    });
-
-    if (result.canceled || !result.assets?.length) return;
-
-    const newItems: PhotoItem[] = result.assets.map((asset) => ({
-      id: uuidv4(),
-      uri: asset.uri,
-      storagePath: null,
-      uploading: true,
-      error: false,
-    }));
-
-    setPhotos((prev) => [...prev, ...newItems]);
-
-    // Upload all in parallel
-    await Promise.all(
-      newItems.map(async (item) => {
-        try {
-          const { uploadUrl, storagePath } = await uploadsApi.createParkingPhotoUpload({
-            contentType: 'image/jpeg',
-            fileExt: 'jpg',
-          });
-          await uploadAsync(uploadUrl, item.uri, {
-            httpMethod: 'PUT',
-            uploadType: FileSystemUploadType.BINARY_CONTENT,
-            headers: { 'Content-Type': 'image/jpeg' },
-          });
-          setPhotos((prev) =>
-            prev.map((p) =>
-              p.id === item.id ? { ...p, storagePath, uploading: false } : p,
-            ),
-          );
-        } catch {
-          setPhotos((prev) =>
-            prev.map((p) =>
-              p.id === item.id ? { ...p, uploading: false, error: true } : p,
-            ),
-          );
-        }
-      }),
-    );
   }
 
   function handleRemovePhoto(id: string) {
     setPhotos((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function handleRetryPhoto(id: string) {
+    const photo = photos.find((p) => p.id === id);
+    if (!photo) return;
+    setPhotos((prev) => prev.map((p) => p.id === id ? { ...p, uploading: true, error: false } : p));
+    try {
+      const { uploadUrl, storagePath } = await uploadsApi.createParkingPhotoUpload({
+        contentType: 'image/jpeg',
+        fileExt: 'jpg',
+      });
+      await uploadAsync(uploadUrl, photo.uri, {
+        httpMethod: 'PUT',
+        uploadType: FileSystemUploadType.BINARY_CONTENT,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+      setPhotos((prev) => prev.map((p) => p.id === id ? { ...p, storagePath, uploading: false } : p));
+    } catch (err: any) {
+      console.warn('Photo retry failed:', err?.message ?? err);
+      setPhotos((prev) => prev.map((p) => p.id === id ? { ...p, uploading: false, error: true } : p));
+    }
   }
 
   async function handleSubmit() {
@@ -1568,6 +2151,7 @@ export default function ContributeScreen() {
         longitude: pinCoord.longitude,
         type,
         rates: isPaid && hourlyRate ? `₱${hourlyRate}/hr` : isPaid ? 'Paid' : 'Free',
+        detailedRates: detailedRates ?? undefined,
         operatingHours: is24Hours
           ? '24 hours'
           : `${openTime.trim()}–${closeTime.trim()}`,
@@ -1624,6 +2208,7 @@ export default function ContributeScreen() {
               type={type} setType={setType}
               isPaid={isPaid} setIsPaid={setIsPaid}
               hourlyRate={hourlyRate} setHourlyRate={setHourlyRate}
+              detailedRates={detailedRates} setDetailedRates={setDetailedRates}
               is24Hours={is24Hours} setIs24Hours={setIs24Hours}
               openTime={openTime} setOpenTime={setOpenTime}
               closeTime={closeTime} setCloseTime={setCloseTime}
@@ -1637,6 +2222,7 @@ export default function ContributeScreen() {
               photos={photos}
               onAddPhotos={handleAddPhotos}
               onRemovePhoto={handleRemovePhoto}
+              onRetryPhoto={handleRetryPhoto}
               onBack={() => setStep(1)}
               onNext={() => setStep(3)}
             />
@@ -1645,7 +2231,7 @@ export default function ContributeScreen() {
             <ConfirmStep
               pinCoord={pinCoord}
               name={name} type={type}
-              isPaid={isPaid} hourlyRate={hourlyRate}
+              isPaid={isPaid} hourlyRate={hourlyRate} detailedRates={detailedRates}
               is24Hours={is24Hours} openTime={openTime} closeTime={closeTime}
               landmark={landmark} photos={photos}
               submitting={submitting}

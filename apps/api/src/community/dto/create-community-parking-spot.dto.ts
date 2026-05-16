@@ -1,5 +1,6 @@
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ArrayMinSize } from 'class-validator';
-import { ParkingType } from '@perch/shared';
+import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ArrayMinSize, ValidateNested, IsObject } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ParkingType, DetailedRates } from '@perch/shared';
 
 export class CreateCommunityParkingSpotDto {
   @IsString()
@@ -17,6 +18,10 @@ export class CreateCommunityParkingSpotDto {
   @IsOptional()
   @IsString()
   rates?: string;
+
+  @IsOptional()
+  @IsObject()
+  detailedRates?: DetailedRates;
 
   @IsOptional()
   @IsString()

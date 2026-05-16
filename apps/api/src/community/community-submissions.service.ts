@@ -7,6 +7,7 @@ import { ModerationItemEntity } from './entities/moderation-item.entity';
 import { ParkingSpotPhotoEntity } from './entities/parking-spot-photo.entity';
 import { UploadsService } from '../uploads/uploads.service';
 import { CreateCommunityParkingSpotDto } from './dto/create-community-parking-spot.dto';
+import { RateSummaryService } from './rate-summary.service';
 
 function tierRadiusMeters(tier: 'pigeon' | 'hawk' | 'eagle'): number {
   if (tier === 'hawk') return 500;
@@ -36,6 +37,7 @@ export class CommunitySubmissionsService {
     @InjectRepository(ParkingSpotPhotoEntity)
     private readonly photoRepo: Repository<ParkingSpotPhotoEntity>,
     private readonly uploads: UploadsService,
+    private readonly rateSummary: RateSummaryService,
   ) {}
 
   async getOrCreateStats(userId: string): Promise<ContributorStatsEntity> {
@@ -64,13 +66,31 @@ export class CommunitySubmissionsService {
       }
     }
 
+    // Resolve rates string: if detailedRates provided, auto-generate unless caller also sent a rates string
+    let resolvedRates = dto.rates;
+    let resolvedDetailedRates = dto.detailedRates;
+
+    if (dto.detailedRates) {
+      // Always regenerate from structured data so the string stays in sync
+      resolvedRates = this.rateSummary.generate(dto.detailedRates);
+
+      // Infer confidence if not already set by caller
+      if (!dto.detailedRates.dataConfidence) {
+        resolvedDetailedRates = {
+          ...dto.detailedRates,
+          dataConfidence: this.rateSummary.inferConfidence(dto.detailedRates),
+        };
+      }
+    }
+
     const spot = await this.spotRepo.save(
       this.spotRepo.create({
         name: dto.name,
         latitude: dto.latitude,
         longitude: dto.longitude,
         type: dto.type,
-        rates: dto.rates,
+        rates: resolvedRates,
+        detailedRates: resolvedDetailedRates,
         operatingHours: dto.operatingHours,
         communityVerification: 'unverified',
         submittedByUserId: userId,
@@ -89,7 +109,8 @@ export class CommunitySubmissionsService {
             latitude: dto.latitude,
             longitude: dto.longitude,
             type: dto.type,
-            rates: dto.rates ?? null,
+            rates: resolvedRates ?? null,
+            detailedRates: resolvedDetailedRates ?? null,
             operatingHours: dto.operatingHours ?? null,
           },
           photoStoragePaths: dto.photoStoragePaths,

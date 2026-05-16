@@ -9,20 +9,34 @@ export interface Coordinates {
 
 export interface VehicleRate {
   freeMinutes?: number;
+  validationMinutes?: number;
   firstHours?: number;
   firstRate?: number;
   succeedingRate?: number;
   flatRate?: number;
+  /** @deprecated Use flatRateWindowStart/End instead */
   flatRateWindow?: string;
+  flatRateWindowStart?: string;
+  flatRateWindowEnd?: string;
   overnightCharge?: number;
+  /** @deprecated Use overnightWindowStart/End instead */
   overnightCutoff?: string;
+  overnightWindowStart?: string;
+  overnightWindowEnd?: string;
+  minimumCharge?: number;
 }
 
 export interface DetailedRates {
   car?: VehicleRate;
   motorcycle?: VehicleRate;
   van?: VehicleRate;
+  truck?: VehicleRate;
   lostTicketFee?: number;
+  damagedCardFee?: number;
+  penaltyNotes?: string;
+  notes?: string;
+  rawText?: string;
+  dataConfidence?: 'low' | 'medium' | 'high';
 }
 
 export interface ParkingSpot {
