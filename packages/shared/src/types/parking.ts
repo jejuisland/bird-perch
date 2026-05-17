@@ -24,6 +24,9 @@ export interface VehicleRate {
   overnightWindowStart?: string;
   overnightWindowEnd?: string;
   minimumCharge?: number;
+  dailyMaxCap?: number;
+  partialHourRounding?: 'ceil' | 'floor' | 'round';
+  succeedingRateIntervalMinutes?: number;
 }
 
 export interface DetailedRates {
@@ -37,6 +40,14 @@ export interface DetailedRates {
   notes?: string;
   rawText?: string;
   dataConfidence?: 'low' | 'medium' | 'high';
+  timezone?: string;
+  currency?: string;
+  validationDiscount?: {
+    discountMinutes?: number;
+    discountPercent?: number;
+  };
+  lastVerifiedAt?: string;
+  rateVersion?: number;
 }
 
 export interface ParkingSpot {

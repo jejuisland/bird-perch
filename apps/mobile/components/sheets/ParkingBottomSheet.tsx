@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, ActivityIndicator, Alert, Linking, Platform, Share,
+  TextInput, ActivityIndicator, Alert, Linking, Platform, Share, Modal,
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { ParkingSpot, VehicleRate } from '@perch/shared';
+import {
+  ParkingSpot, VehicleRate,
+  calculateParkingFee, availableVehicleTypes, PricingVehicleType, FeeBreakdown,
+} from '@perch/shared';
 import { favoritesApi, reviewsApi } from '../../services/api';
 import { COLORS } from '../../constants';
 
@@ -275,6 +278,334 @@ function InlineAd() {
   );
 }
 
+// ─── Cost Calculator ─────────────────────────────────────────────────────────
+
+const DURATION_CHIPS = [60, 120, 180, 240] as const;
+const VEHICLE_OPTIONS: { type: PricingVehicleType; icon: string; label: string }[] = [
+  { type: 'car', icon: '🚗', label: 'Car' },
+  { type: 'motorcycle', icon: '🏍️', label: 'Moto' },
+  { type: 'van', icon: '🚐', label: 'Van' },
+  { type: 'truck', icon: '🚚', label: 'Truck' },
+];
+
+function formatHHMM(date: Date) {
+  const h = date.getHours();
+  const m = date.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+function formatDuration(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (m === 0) return `${h}h`;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+const CONFIDENCE_META: Record<string, { color: string; bg: string; label: string }> = {
+  high: { color: '#16A34A', bg: '#F0FDF4', label: 'Verified rates' },
+  medium: { color: COLORS.primary, bg: '#EFF6FF', label: 'Community rates' },
+  low: { color: '#D97706', bg: '#FFFBEB', label: 'Unverified rates' },
+  none: { color: '#6B7280', bg: '#F3F4F6', label: 'No structured rates' },
+};
+
+function TimePickerModal({
+  visible,
+  value,
+  onConfirm,
+  onClose,
+}: {
+  visible: boolean;
+  value: Date;
+  onConfirm: (d: Date) => void;
+  onClose: () => void;
+}) {
+  const [h, setH] = useState(value.getHours());
+  const [m, setM] = useState(Math.round(value.getMinutes() / 15) * 15 % 60);
+
+  useEffect(() => {
+    if (visible) {
+      setH(value.getHours());
+      setM(Math.round(value.getMinutes() / 15) * 15 % 60);
+    }
+  }, [visible, value]);
+
+  const adjustH = (delta: number) => setH((prev) => (prev + delta + 24) % 24);
+  const adjustM = (delta: number) => setM((prev) => (prev + delta + 60) % 60);
+
+  const formatted12 = () => {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hh = h % 12 === 0 ? 12 : h % 12;
+    return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`;
+  };
+
+  const confirm = () => {
+    const d = new Date(value);
+    d.setHours(h, m, 0, 0);
+    onConfirm(d);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={calcStyles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={calcStyles.modalCard}>
+          <Text style={calcStyles.modalTitle}>Select Arrival Time</Text>
+          <View style={calcStyles.pickerRow}>
+            <View style={calcStyles.pickerCol}>
+              <TouchableOpacity onPress={() => adjustH(1)} style={calcStyles.pickerBtn}>
+                <Text style={calcStyles.pickerArrow}>▲</Text>
+              </TouchableOpacity>
+              <Text style={calcStyles.pickerValue}>{(h % 12 === 0 ? 12 : h % 12).toString().padStart(2, '0')}</Text>
+              <TouchableOpacity onPress={() => adjustH(-1)} style={calcStyles.pickerBtn}>
+                <Text style={calcStyles.pickerArrow}>▼</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={calcStyles.pickerColon}>:</Text>
+            <View style={calcStyles.pickerCol}>
+              <TouchableOpacity onPress={() => adjustM(15)} style={calcStyles.pickerBtn}>
+                <Text style={calcStyles.pickerArrow}>▲</Text>
+              </TouchableOpacity>
+              <Text style={calcStyles.pickerValue}>{m.toString().padStart(2, '0')}</Text>
+              <TouchableOpacity onPress={() => adjustM(-15)} style={calcStyles.pickerBtn}>
+                <Text style={calcStyles.pickerArrow}>▼</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={calcStyles.pickerCol}>
+              <TouchableOpacity onPress={() => setH((prev) => (prev + 12) % 24)} style={[calcStyles.pickerBtn, { paddingVertical: 8 }]}>
+                <Text style={[calcStyles.pickerValue, { fontSize: 18 }]}>{h >= 12 ? 'PM' : 'AM'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <Text style={calcStyles.pickerPreview}>{formatted12()}</Text>
+          <TouchableOpacity style={calcStyles.modalConfirmBtn} onPress={confirm} activeOpacity={0.85}>
+            <Text style={calcStyles.modalConfirmText}>Set Time</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+function CostCalculatorSection({ spot }: { spot: ParkingSpot }) {
+  const dr = spot.detailedRates;
+  const [open, setOpen] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [vehicleType, setVehicleType] = useState<PricingVehicleType>('car');
+  const [arrivalTime, setArrivalTime] = useState(() => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    d.setMinutes(Math.round(d.getMinutes() / 15) * 15);
+    return d;
+  });
+  const [durationMinutes, setDurationMinutes] = useState(120);
+  const [customMinutes, setCustomMinutes] = useState('');
+  const [customActive, setCustomActive] = useState(false);
+
+  const availableTypes = useMemo(() => (dr ? availableVehicleTypes(dr) : []), [dr]);
+
+  useEffect(() => {
+    if (availableTypes.length > 0 && !availableTypes.includes(vehicleType)) {
+      setVehicleType(availableTypes[0]);
+    }
+  }, [availableTypes]);
+
+  const effectiveDuration = customActive
+    ? Math.max(1, parseInt(customMinutes || '0', 10))
+    : durationMinutes;
+
+  const breakdown: FeeBreakdown | null = useMemo(() => {
+    if (!dr) return null;
+    const rates = dr[vehicleType];
+    if (!rates) {
+      const fallback = dr.car ?? dr.motorcycle ?? dr.van ?? dr.truck;
+      if (!fallback) return null;
+      const result = calculateParkingFee({
+        arrivalTime,
+        exitTime: new Date(arrivalTime.getTime() + effectiveDuration * 60_000),
+        vehicleType,
+        rates: fallback,
+        detailedRates: dr,
+      });
+      result.warnings.unshift(`No ${vehicleType} rate — using ${dr.car ? 'car' : 'available'} rate`);
+      return result;
+    }
+    return calculateParkingFee({
+      arrivalTime,
+      exitTime: new Date(arrivalTime.getTime() + effectiveDuration * 60_000),
+      vehicleType,
+      rates,
+      detailedRates: dr,
+    });
+  }, [dr, vehicleType, arrivalTime, effectiveDuration]);
+
+  const confidence = breakdown?.confidence ?? 'none';
+  const meta = CONFIDENCE_META[confidence] ?? CONFIDENCE_META.none;
+
+  if (!dr) {
+    return (
+      <View style={calcStyles.noRatesCard}>
+        <Text style={calcStyles.noRatesText}>
+          💡 No structured rates — see rates summary below for pricing info.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={calcStyles.container}>
+      <TouchableOpacity style={calcStyles.header} onPress={() => setOpen((v) => !v)} activeOpacity={0.7}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={calcStyles.headerIcon}>🧮</Text>
+          <Text style={calcStyles.headerTitle}>Calculate My Cost</Text>
+        </View>
+        <Text style={calcStyles.chevron}>{open ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+
+      {open && (
+        <View style={calcStyles.body}>
+          {/* Vehicle selector */}
+          <Text style={calcStyles.inputLabel}>VEHICLE</Text>
+          <View style={calcStyles.vehicleTabs}>
+            {VEHICLE_OPTIONS.filter((v) => availableTypes.includes(v.type)).map((v) => (
+              <TouchableOpacity
+                key={v.type}
+                style={[calcStyles.vehicleTab, vehicleType === v.type && calcStyles.vehicleTabActive]}
+                onPress={() => setVehicleType(v.type)}
+                activeOpacity={0.7}
+              >
+                <Text style={calcStyles.vehicleTabIcon}>{v.icon}</Text>
+                <Text style={[calcStyles.vehicleTabLabel, vehicleType === v.type && calcStyles.vehicleTabLabelActive]}>
+                  {v.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Arrival time */}
+          <Text style={[calcStyles.inputLabel, { marginTop: 14 }]}>ARRIVAL TIME</Text>
+          <View style={calcStyles.arrivalRow}>
+            <TouchableOpacity
+              style={calcStyles.timeAdjBtn}
+              onPress={() => setArrivalTime((d) => new Date(d.getTime() - 30 * 60_000))}
+              activeOpacity={0.7}
+            >
+              <Text style={calcStyles.timeAdjText}>−30m</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={calcStyles.timeDisplay} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
+              <Text style={calcStyles.timeDisplayText}>{formatHHMM(arrivalTime)}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={calcStyles.timeAdjBtn}
+              onPress={() => setArrivalTime((d) => new Date(d.getTime() + 30 * 60_000))}
+              activeOpacity={0.7}
+            >
+              <Text style={calcStyles.timeAdjText}>+30m</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Duration chips */}
+          <Text style={[calcStyles.inputLabel, { marginTop: 14 }]}>STAY DURATION</Text>
+          <View style={calcStyles.durationRow}>
+            {DURATION_CHIPS.map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[calcStyles.durationChip, !customActive && durationMinutes === d && calcStyles.durationChipActive]}
+                onPress={() => { setDurationMinutes(d); setCustomActive(false); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[calcStyles.durationChipText, !customActive && durationMinutes === d && calcStyles.durationChipTextActive]}>
+                  {formatDuration(d)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[calcStyles.durationChip, customActive && calcStyles.durationChipActive]}
+              onPress={() => setCustomActive(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[calcStyles.durationChipText, customActive && calcStyles.durationChipTextActive]}>Custom</Text>
+            </TouchableOpacity>
+          </View>
+          {customActive && (
+            <View style={calcStyles.customRow}>
+              <TextInput
+                style={calcStyles.customInput}
+                placeholder="Hours (e.g. 5)"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="numeric"
+                value={customMinutes}
+                onChangeText={(v) => setCustomMinutes(v.replace(/[^0-9.]/g, ''))}
+              />
+              <Text style={calcStyles.customUnit}>hours</Text>
+              <TouchableOpacity
+                style={calcStyles.customSetBtn}
+                onPress={() => {
+                  const hrs = parseFloat(customMinutes || '0');
+                  setDurationMinutes(Math.round(hrs * 60));
+                  setCustomActive(false);
+                  setCustomMinutes('');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={calcStyles.customSetText}>Set</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Breakdown */}
+          {breakdown && (
+            <View style={calcStyles.breakdownCard}>
+              <View style={calcStyles.breakdownDivider} />
+              {breakdown.lineItems.map((item, i) => (
+                <View key={i} style={calcStyles.lineItemRow}>
+                  <Text style={calcStyles.lineItemLabel}>{item.label}</Text>
+                  <Text style={[calcStyles.lineItemAmount, item.isFree && calcStyles.lineItemFree]}>
+                    {item.isFree ? 'FREE' : item.amount < 0 ? `−₱${Math.abs(item.amount).toLocaleString()}` : `₱${item.amount.toLocaleString()}`}
+                  </Text>
+                </View>
+              ))}
+              <View style={calcStyles.totalRow}>
+                <View style={calcStyles.breakdownDivider} />
+                {breakdown.cap !== undefined && (
+                  <View style={calcStyles.capRow}>
+                    <Text style={calcStyles.capLabel}>🔒 Daily max cap applied</Text>
+                    <Text style={calcStyles.capValue}>₱{breakdown.cap.toLocaleString()}</Text>
+                  </View>
+                )}
+                <View style={calcStyles.totalAmountRow}>
+                  <Text style={calcStyles.totalLabel}>ESTIMATED TOTAL</Text>
+                  <Text style={calcStyles.totalAmount}>₱{breakdown.total.toLocaleString()}</Text>
+                </View>
+                <Text style={calcStyles.exitNote}>
+                  Exit by {formatHHMM(new Date(arrivalTime.getTime() + effectiveDuration * 60_000))}
+                </Text>
+              </View>
+              {breakdown.warnings.map((w, i) => (
+                <Text key={i} style={calcStyles.warning}>⚠ {w}</Text>
+              ))}
+              <View style={[calcStyles.confidenceBadge, { backgroundColor: meta.bg }]}>
+                <Text style={[calcStyles.confidenceText, { color: meta.color }]}>
+                  {meta.label} · {confidence === 'high' ? '✓ Verified' : confidence === 'medium' ? 'Moderate confidence' : 'Use as rough estimate'}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      )}
+
+      <TimePickerModal
+        visible={showTimePicker}
+        value={arrivalTime}
+        onConfirm={setArrivalTime}
+        onClose={() => setShowTimePicker(false)}
+      />
+    </View>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ParkingBottomSheet({ spot, userLocation, onClose }: Props) {
@@ -477,6 +808,9 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
 
             {/* ── Detailed Rates ── */}
             {spot.detailedRates && <DetailedRatesSection spot={spot} />}
+
+            {/* ── Cost Calculator ── */}
+            <CostCalculatorSection spot={spot} />
 
             {/* ── Info Card ── */}
             <View style={styles.detailsCard}>
@@ -822,6 +1156,125 @@ const condStyles = StyleSheet.create({
   ruleRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   ruleNumber: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary, minWidth: 18 },
   ruleText: { fontSize: 13, color: COLORS.text, lineHeight: 20, flex: 1 },
+});
+
+// ─── Cost calculator styles ───────────────────────────────────────────────────
+
+const calcStyles = StyleSheet.create({
+  container: {
+    borderRadius: 16, borderWidth: 1, borderColor: COLORS.border,
+    marginBottom: 16, overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4', paddingHorizontal: 16, paddingVertical: 14,
+  },
+  headerIcon: { fontSize: 16 },
+  headerTitle: { fontSize: 15, fontWeight: '700', color: '#166534' },
+  chevron: { fontSize: 12, color: '#166534', fontWeight: '700' },
+  body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16 },
+
+  inputLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 0.8, marginBottom: 8 },
+
+  vehicleTabs: { flexDirection: 'row', gap: 8 },
+  vehicleTab: {
+    flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12,
+    borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface,
+  },
+  vehicleTabActive: { borderColor: COLORS.primary, backgroundColor: '#EFF6FF' },
+  vehicleTabIcon: { fontSize: 18, marginBottom: 2 },
+  vehicleTabLabel: { fontSize: 11, fontWeight: '600', color: COLORS.textSecondary },
+  vehicleTabLabelActive: { color: COLORS.primary },
+
+  arrivalRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timeAdjBtn: {
+    paddingHorizontal: 14, paddingVertical: 11, borderRadius: 10,
+    backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+  },
+  timeAdjText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  timeDisplay: {
+    flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 10,
+    backgroundColor: COLORS.primary + '15', borderWidth: 1.5, borderColor: COLORS.primary,
+  },
+  timeDisplayText: { fontSize: 16, fontWeight: '800', color: COLORS.primary },
+
+  durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  durationChip: {
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20,
+    backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border,
+  },
+  durationChipActive: { borderColor: COLORS.primary, backgroundColor: '#EFF6FF' },
+  durationChipText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  durationChipTextActive: { color: COLORS.primary },
+
+  customRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  customInput: {
+    flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: COLORS.text,
+    backgroundColor: COLORS.surface,
+  },
+  customUnit: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500' },
+  customSetBtn: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: COLORS.primary,
+  },
+  customSetText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  breakdownCard: { marginTop: 14 },
+  breakdownDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 10 },
+  lineItemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  lineItemLabel: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
+  lineItemAmount: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  lineItemFree: { color: '#16A34A' },
+
+  totalRow: { marginTop: 2 },
+  capRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#FFF7ED', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 6,
+  },
+  capLabel: { fontSize: 12, color: '#92400E' },
+  capValue: { fontSize: 12, fontWeight: '700', color: '#92400E' },
+  totalAmountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  totalLabel: { fontSize: 13, fontWeight: '800', color: COLORS.text, letterSpacing: 0.4 },
+  totalAmount: { fontSize: 22, fontWeight: '900', color: COLORS.primary },
+  exitNote: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'right', marginTop: 2, marginBottom: 8 },
+
+  warning: { fontSize: 12, color: '#D97706', marginBottom: 6, lineHeight: 17 },
+  confidenceBadge: {
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginTop: 4,
+  },
+  confidenceText: { fontSize: 12, fontWeight: '600' },
+
+  noRatesCard: {
+    backgroundColor: COLORS.surface, borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: 16,
+  },
+  noRatesText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 19 },
+
+  // Time picker modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalCard: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 24,
+    width: 280, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15, shadowRadius: 20, elevation: 20,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '800', color: COLORS.text, marginBottom: 20 },
+  pickerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  pickerCol: { alignItems: 'center', minWidth: 56 },
+  pickerBtn: { padding: 10 },
+  pickerArrow: { fontSize: 18, color: COLORS.primary, fontWeight: '700' },
+  pickerValue: { fontSize: 32, fontWeight: '900', color: COLORS.text, minWidth: 52, textAlign: 'center' },
+  pickerColon: { fontSize: 32, fontWeight: '900', color: COLORS.text, marginBottom: 4 },
+  pickerPreview: { fontSize: 15, color: COLORS.textSecondary, marginBottom: 20 },
+  modalConfirmBtn: {
+    backgroundColor: COLORS.primary, borderRadius: 12,
+    paddingHorizontal: 32, paddingVertical: 13, width: '100%', alignItems: 'center',
+  },
+  modalConfirmText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });
 
 // ─── Inline ad styles ─────────────────────────────────────────────────────────

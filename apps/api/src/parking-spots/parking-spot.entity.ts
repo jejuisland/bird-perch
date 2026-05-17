@@ -46,7 +46,7 @@ export class ParkingSpotEntity {
   @Column({
     type: 'enum',
     enum: ['unverified', 'verified'],
-    default: 'verified',
+    default: 'unverified',
   })
   communityVerification: CommunityVerification;
 

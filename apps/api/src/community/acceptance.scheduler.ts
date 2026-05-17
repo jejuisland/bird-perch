@@ -44,11 +44,16 @@ export class AcceptanceScheduler {
       await this.awardPoints(reviewsToAccept.map((r) => r.userId), POINTS_REVIEW, 'review');
     }
 
+    // Only auto-approve photos whose parent spot is already verified.
+    // Photos on pending/unverified spots are ineligible until the spot passes
+    // moderation — preventing photo-farming for points before verification.
     const photosToAccept = await this.photosRepo
       .createQueryBuilder('p')
+      .innerJoin('parking_spots', 's', 's.id = p."parkingSpotId"')
       .where('p.communityApprovedAt IS NULL')
       .andWhere('p.hiddenAt IS NULL')
       .andWhere('p.createdAt < :cutoff', { cutoff })
+      .andWhere("s.communityVerification = 'verified'")
       .orderBy('p.createdAt', 'ASC')
       .limit(200)
       .getMany();

@@ -458,6 +458,8 @@ type LocalVehicleRate = {
   overnightWindowStart: string;
   overnightWindowEnd: string;
   minimumCharge: string;
+  dailyMaxCap: string;
+  partialHourRounding: 'ceil' | 'floor';
 };
 
 const VEHICLE_DEFAULTS: Record<VehicleTab, LocalVehicleRate> = {
@@ -465,19 +467,19 @@ const VEHICLE_DEFAULTS: Record<VehicleTab, LocalVehicleRate> = {
     mode: 'tiered', freeMinutes: '', firstHours: '2', firstRate: '',
     succeedingRate: '', flatRate: '', flatWindowStart: '06:00', flatWindowEnd: '01:30',
     overnightEnabled: false, overnightCharge: '', overnightWindowStart: '01:30',
-    overnightWindowEnd: '06:00', minimumCharge: '',
+    overnightWindowEnd: '06:00', minimumCharge: '', dailyMaxCap: '', partialHourRounding: 'ceil',
   },
   motorcycle: {
     mode: 'flat', freeMinutes: '', firstHours: '2', firstRate: '',
     succeedingRate: '', flatRate: '', flatWindowStart: '06:00', flatWindowEnd: '01:30',
     overnightEnabled: false, overnightCharge: '', overnightWindowStart: '01:30',
-    overnightWindowEnd: '06:00', minimumCharge: '',
+    overnightWindowEnd: '06:00', minimumCharge: '', dailyMaxCap: '', partialHourRounding: 'ceil',
   },
   van: {
     mode: 'tiered', freeMinutes: '', firstHours: '2', firstRate: '',
     succeedingRate: '', flatRate: '', flatWindowStart: '06:00', flatWindowEnd: '01:30',
     overnightEnabled: false, overnightCharge: '', overnightWindowStart: '01:30',
-    overnightWindowEnd: '06:00', minimumCharge: '',
+    overnightWindowEnd: '06:00', minimumCharge: '', dailyMaxCap: '', partialHourRounding: 'ceil',
   },
 };
 
@@ -490,6 +492,8 @@ function localRateToVehicleRate(r: LocalVehicleRate): VehicleRate {
   const out: VehicleRate = {};
   if (r.freeMinutes) out.freeMinutes = Number(r.freeMinutes);
   if (r.minimumCharge) out.minimumCharge = Number(r.minimumCharge);
+  if (r.dailyMaxCap) out.dailyMaxCap = Number(r.dailyMaxCap);
+  out.partialHourRounding = r.partialHourRounding;
 
   if (r.mode === 'flat') {
     if (r.flatRate) out.flatRate = Number(r.flatRate);
@@ -715,6 +719,38 @@ function RateVehicleForm({
           <Text style={rb.unit}>minimum</Text>
         </View>
       </View>
+
+      {/* Daily max cap */}
+      <View>
+        <Text style={rb.fieldLabel}>Daily Maximum Cap (optional)</Text>
+        <View style={rb.rowInput}>
+          <Text style={rb.peso}>₱</Text>
+          <TextInput
+            style={[inputStyle, { flex: 1 }]}
+            value={rate.dailyMaxCap}
+            onChangeText={(t) => set({ dailyMaxCap: t.replace(/[^0-9.]/g, '') })}
+            placeholder="e.g. 300"
+            placeholderTextColor={COLORS.textSecondary}
+            keyboardType="decimal-pad"
+          />
+          <Text style={rb.unit}>max/day</Text>
+        </View>
+      </View>
+
+      {/* Partial hour billing */}
+      {rate.mode === 'tiered' && (
+        <View>
+          <Text style={rb.fieldLabel}>Partial Hour Billing</Text>
+          <SegmentedToggle
+            options={[
+              { label: 'Full hour (ceil)', value: 'ceil' },
+              { label: 'Exact minutes', value: 'floor' },
+            ]}
+            value={rate.partialHourRounding}
+            onChange={(v) => set({ partialHourRounding: v as 'ceil' | 'floor' })}
+          />
+        </View>
+      )}
     </ScrollView>
   );
 }

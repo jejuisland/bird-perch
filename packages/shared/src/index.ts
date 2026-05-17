@@ -4,3 +4,4 @@ export * from './types/review';
 export * from './types/heatmap';
 export * from './types/analytics';
 export * from './types/community';
+export * from './utils/pricing-engine';
