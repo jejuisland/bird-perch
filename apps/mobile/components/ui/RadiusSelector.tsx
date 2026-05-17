@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useMapStore } from '../../store/mapStore';
 import { COLORS } from '../../constants';
 
@@ -47,9 +48,9 @@ export default function RadiusSelector() {
         onPress={() => setExpanded((v) => !v)}
         activeOpacity={0.8}
       >
-        <Text style={styles.icon}>📍</Text>
+        <Ionicons name="resize-outline" size={14} color={COLORS.textSecondary} />
         <Text style={styles.label}>{currentLabel}</Text>
-        <Text style={[styles.chevron, expanded && styles.chevronUp]}>›</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={COLORS.textSecondary} />
       </TouchableOpacity>
     </View>
   );
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   panel: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     borderRadius: 14,
     marginBottom: 6,
     overflow: 'hidden',
@@ -82,11 +83,11 @@ const styles = StyleSheet.create({
   },
   optionActive: { backgroundColor: COLORS.primary },
   optionText: { fontSize: 14, fontWeight: '500', color: COLORS.text, textAlign: 'center' },
-  optionTextActive: { color: '#fff', fontWeight: '700' },
+  optionTextActive: { color: COLORS.textInverse, fontWeight: '700' },
   btn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 22,
@@ -100,8 +101,5 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   btnExpanded: { borderColor: COLORS.primary, borderWidth: 1.5 },
-  icon: { fontSize: 14 },
   label: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-  chevron: { fontSize: 16, color: COLORS.textSecondary, transform: [{ rotate: '90deg' }] },
-  chevronUp: { transform: [{ rotate: '-90deg' }] },
 });

@@ -96,3 +96,6 @@ export function tierProgress(points: number, current: TierName): number {
   const to = TIER_THRESHOLDS[next];
   return Math.min((points - from) / (to - from), 1);
 }
+
+export const TAB_BAR_HEIGHT = 64;
+export const TAB_BAR_MARGIN_BOTTOM = 12;
