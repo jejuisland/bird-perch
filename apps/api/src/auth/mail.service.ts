@@ -1,36 +1,51 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Resend } from 'resend';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private resend: Resend | null = null;
-  private fromAddress: string;
+  private apiKey: string | null;
+  private fromEmail: string;
+  private fromName: string;
 
   constructor() {
-    const apiKey = process.env.RESEND_API_KEY;
-    this.fromAddress = process.env.MAIL_FROM ?? 'Perch <onboarding@resend.dev>';
+    this.apiKey = process.env.BREVO_API_KEY ?? null;
+    const from = process.env.MAIL_FROM ?? 'Perch <onboarding@perch.app>';
+    const match = from.match(/^(.+?)\s*<(.+)>$/);
+    this.fromName = match ? match[1].trim() : 'Perch';
+    this.fromEmail = match ? match[2].trim() : from;
 
-    if (apiKey) {
-      this.resend = new Resend(apiKey);
-      this.logger.log(`Mail service ready — sending from ${this.fromAddress}`);
+    if (this.apiKey) {
+      this.logger.log(`Mail service ready — sending from ${this.fromEmail}`);
     } else {
-      this.logger.warn('RESEND_API_KEY not set — OTP codes will be logged to console only.');
+      this.logger.warn('BREVO_API_KEY not set — OTP codes will be logged to console only.');
     }
   }
 
   async sendOtp(email: string, code: string): Promise<void> {
-    if (!this.resend) {
+    if (!this.apiKey) {
       this.printToConsole(email, code);
       return;
     }
 
-    await this.resend.emails.send({
-      from: this.fromAddress,
-      to: email,
-      subject: `${code} is your Perch verification code`,
-      html: this.buildTemplate(code),
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': this.apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: this.fromName, email: this.fromEmail },
+        to: [{ email }],
+        subject: `${code} is your Perch verification code`,
+        htmlContent: this.buildTemplate(code),
+      }),
     });
+
+    if (!res.ok) {
+      const body = await res.text();
+      this.logger.error(`Brevo send failed (${res.status}): ${body}`);
+      throw new Error('Failed to send OTP email');
+    }
 
     this.logger.log(`OTP sent to ${email}`);
   }
