@@ -55,7 +55,8 @@ export class ParkingSpotsService {
   }
 
   async create(data: Partial<ParkingSpotEntity>): Promise<ParkingSpotEntity> {
-    const spot = this.repo.create(data);
+    // Admin-created spots bypass moderation and are always verified.
+    const spot = this.repo.create({ communityVerification: 'verified', ...data });
     return this.repo.save(spot);
   }
 

@@ -13,10 +13,15 @@ function tierWeight(tier: 'pigeon' | 'hawk' | 'eagle'): number {
   return 1;
 }
 
-// Thresholds for resolution. Both approval AND rejection require reaching
-// RESOLVE_THRESHOLD weighted points. Rejection additionally must lead approvals.
-// This prevents a single low-weight vote from immediately killing a submission.
-const RESOLVE_THRESHOLD = 3;
+// Requires Eagle+Hawk (5), Eagle+two Pigeons (5), or five Pigeons (5) minimum.
+// Prevents any single voter — including Eagle (weight=3) — from resolving alone.
+const RESOLVE_THRESHOLD = 5;
+
+// Points awarded to the spot submitter when their submission is verified.
+const POINTS_SPOT_VERIFIED = 10;
+
+// Points awarded to a voter whose vote matched the final resolution outcome.
+const POINTS_CORRECT_VOTE = 1;
 
 @Injectable()
 export class ModerationService {
@@ -67,9 +72,11 @@ export class ModerationService {
     const stats = await this.getOrCreateStats(userId);
     const weight = tierWeight(stats.tier);
 
-    // All reads, score updates, and resolution run inside a single serializable
-    // transaction with a row-level write lock on the moderation item. This
-    // prevents concurrent votes from corrupting the score or double-resolving.
+    // All reads, score updates, resolution, and DB side-effects run inside a
+    // single SERIALIZABLE transaction with a row-level write lock on the
+    // moderation item. This prevents concurrent votes from corrupting the score
+    // or double-resolving, and guarantees parking_spots is updated atomically
+    // with moderation_items — no gap for a crash to leave them inconsistent.
     const result = await this.dataSource.transaction('SERIALIZABLE', async (em) => {
       const item = await em.findOne(ModerationItemEntity, {
         where: { id: moderationItemId },
@@ -79,7 +86,6 @@ export class ModerationService {
       if (!item) throw new NotFoundException('Moderation item not found');
       if (item.status !== 'pending') throw new BadRequestException('Moderation item already resolved');
 
-      // Submitters cannot moderate their own submissions.
       if (item.submitterUserId && item.submitterUserId === userId) {
         throw new ForbiddenException('You cannot vote on your own submission');
       }
@@ -101,11 +107,6 @@ export class ModerationService {
       const nextApproval = item.approvalScore + (approve ? weight : 0);
       const nextRejection = item.rejectionScore + (!approve ? weight : 0);
 
-      // Resolution rules:
-      //   Verified  — approval score reaches threshold.
-      //   Rejected  — rejection score reaches threshold AND rejection leads approval.
-      // Both sides require RESOLVE_THRESHOLD weighted points, so no single vote
-      // (regardless of weight) can resolve an item in isolation from a cold start.
       let resolved: 'verified' | 'rejected' | null = null;
       if (nextApproval >= RESOLVE_THRESHOLD) {
         resolved = 'verified';
@@ -118,17 +119,55 @@ export class ModerationService {
 
       if (resolved) {
         item.status = resolved;
+
+        // Apply all DB side-effects inside the transaction so a crash after
+        // commit cannot leave parking_spots out of sync with moderation_items.
+        if (item.kind === 'new_place' && item.targetParkingSpotId) {
+          if (resolved === 'verified') {
+            await em.update(ParkingSpotEntity, item.targetParkingSpotId, {
+              communityVerification: 'verified',
+            });
+
+            // Award submitter on verification.
+            if (item.submitterUserId) {
+              const submitterStats =
+                (await em.findOne(ContributorStatsEntity, { where: { userId: item.submitterUserId } })) ??
+                em.create(ContributorStatsEntity, { userId: item.submitterUserId, tier: 'pigeon' });
+              submitterStats.contributionPoints += POINTS_SPOT_VERIFIED;
+              submitterStats.verifiedPlacesCount += 1;
+              submitterStats.lastContributionAt = new Date();
+              // Promote tier if thresholds crossed.
+              if (submitterStats.tier === 'pigeon' && submitterStats.contributionPoints >= 50) {
+                submitterStats.tier = 'hawk';
+              } else if (submitterStats.tier === 'hawk' && submitterStats.contributionPoints >= 200) {
+                submitterStats.tier = 'eagle';
+              }
+              await em.save(submitterStats);
+            }
+          } else {
+            // Soft-delete: hide photos and mark spot. A nightly purge job can
+            // hard-delete after a retention window (Phase 2).
+            await em.update(
+              ParkingSpotPhotoEntity,
+              { parkingSpotId: item.targetParkingSpotId },
+              { hiddenAt: new Date() },
+            );
+            // communityVerification stays 'unverified' — already filtered from
+            // findNearby(), so the spot is invisible without a hard delete.
+          }
+        }
       }
 
       await em.save(item);
       return { item, resolved };
     });
 
-    // Apply side-effects outside the transaction so a slow Supabase/DB delete
-    // does not hold the row lock.
+    // Score voter accuracy and award correct-vote points. This runs outside the
+    // transaction intentionally — it is a secondary scoring pass. A crash here
+    // does not corrupt consistency; the worst outcome is a voter's accuracy
+    // stats being momentarily stale until the next vote resolves.
     if (result.resolved) {
-      await this.applyResolution(result.item, result.resolved);
-      await this.scoreAccuracyAndUpdateStats(result.item.id, result.resolved);
+      await this.scoreAccuracyAndAwardVoterPoints(result.item.id, result.resolved);
     }
 
     return {
@@ -138,18 +177,7 @@ export class ModerationService {
     };
   }
 
-  private async applyResolution(item: ModerationItemEntity, resolved: 'verified' | 'rejected') {
-    if (item.kind === 'new_place' && item.targetParkingSpotId) {
-      if (resolved === 'verified') {
-        await this.spotsRepo.update(item.targetParkingSpotId, { communityVerification: 'verified' });
-      } else {
-        await this.photosRepo.delete({ parkingSpotId: item.targetParkingSpotId });
-        await this.spotsRepo.delete(item.targetParkingSpotId);
-      }
-    }
-  }
-
-  private async scoreAccuracyAndUpdateStats(itemId: string, resolved: 'verified' | 'rejected') {
+  private async scoreAccuracyAndAwardVoterPoints(itemId: string, resolved: 'verified' | 'rejected') {
     const votes = await this.votesRepo.find({ where: { moderationItemId: itemId } });
     if (!votes.length) return;
 
@@ -160,12 +188,39 @@ export class ModerationService {
     await this.votesRepo.save(votes);
 
     const affectedUserIds = Array.from(new Set(votes.map((v) => v.userId)));
+
+    // Single aggregate query replaces N×2 COUNT queries.
+    const accuracyRows: { userId: string; total: string; correct: string }[] =
+      await this.votesRepo
+        .createQueryBuilder('v')
+        .select('v.userId', 'userId')
+        .addSelect('COUNT(*)', 'total')
+        .addSelect('SUM(CASE WHEN v.isCorrect = true THEN 1 ELSE 0 END)', 'correct')
+        .where('v.userId IN (:...userIds)', { userIds: affectedUserIds })
+        .groupBy('v.userId')
+        .getRawMany();
+
+    const accuracyMap = new Map(accuracyRows.map((r) => [r.userId, r]));
+
     for (const uid of affectedUserIds) {
       const s = await this.getOrCreateStats(uid);
-      const total = await this.votesRepo.count({ where: { userId: uid } });
-      const correct = await this.votesRepo.count({ where: { userId: uid, isCorrect: true } });
-      s.moderationVotesCount = total;
-      s.moderationAccuracy = total ? correct / total : null;
+      const row = accuracyMap.get(uid);
+      if (row) {
+        const total = parseInt(row.total, 10);
+        const correct = parseInt(row.correct, 10);
+        s.moderationVotesCount = total;
+        s.moderationAccuracy = total ? correct / total : null;
+      }
+
+      // Award 1 point for voting with the majority outcome.
+      const thisVote = votes.find((v) => v.userId === uid);
+      if (thisVote?.isCorrect) {
+        s.contributionPoints += POINTS_CORRECT_VOTE;
+        s.lastContributionAt = new Date();
+        if (s.tier === 'pigeon' && s.contributionPoints >= 50) s.tier = 'hawk';
+        else if (s.tier === 'hawk' && s.contributionPoints >= 200) s.tier = 'eagle';
+      }
+
       await this.statsRepo.save(s);
     }
   }
