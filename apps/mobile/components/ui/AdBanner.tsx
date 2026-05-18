@@ -1,22 +1,25 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 
-const ADS = [
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+const ADS: { logo: IoniconsName; title: string; sub: string; cta: string }[] = [
   {
-    logo: '🅿',
+    logo: 'car-outline',
     title: 'SM Mall Parking',
     sub: 'Reserve your slot in advance — skip the queue',
     cta: 'Reserve',
   },
   {
-    logo: '🚗',
+    logo: 'car-sport-outline',
     title: 'ParkSmart Premium',
     sub: 'Unlimited parking searches + spot alerts',
     cta: 'Try Free',
   },
   {
-    logo: '🛡',
+    logo: 'shield-outline',
     title: 'AutoSure Insurance',
     sub: 'Protect your vehicle from P99/month',
     cta: 'Get Quote',
@@ -34,7 +37,7 @@ export default function AdBanner() {
       </View>
 
       <View style={styles.logoBox}>
-        <Text style={styles.logo}>{ad.logo}</Text>
+        <Ionicons name={ad.logo} size={20} color={COLORS.primary} />
       </View>
 
       <View style={styles.copy}>
@@ -56,7 +59,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 60,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
     flexDirection: 'row',
@@ -65,7 +68,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sponsoredTag: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: COLORS.surface,
     borderRadius: 4,
     paddingHorizontal: 5,
     paddingVertical: 2,
@@ -73,7 +76,7 @@ const styles = StyleSheet.create({
   sponsoredText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#6B7280',
+    color: COLORS.textSecondary,
     letterSpacing: 0.5,
   },
   logoBox: {
@@ -84,7 +87,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logo: { fontSize: 18 },
   copy: { flex: 1 },
   title: { fontSize: 13, fontWeight: '700', color: COLORS.text },
   sub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 1 },
@@ -94,5 +96,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  ctaText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  ctaText: { fontSize: 12, fontWeight: '700', color: COLORS.textInverse },
 });

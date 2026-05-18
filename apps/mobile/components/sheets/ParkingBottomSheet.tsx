@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, ActivityIndicator, Alert, Linking, Platform, Share, Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import {
   ParkingSpot, VehicleRate,
@@ -43,30 +44,32 @@ function formatMinutes(min: number) {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-function getHighlights(spot: ParkingSpot): { icon: string; label: string }[] {
-  const tags: { icon: string; label: string }[] = [];
-  if (spot.type === 'mall') tags.push({ icon: '🏢', label: 'Covered' });
-  if (spot.type === 'private_lot') tags.push({ icon: '🔒', label: 'Secured' });
-  if (spot.type === 'street') tags.push({ icon: '🛣️', label: 'Open Air' });
-  if ((spot.operatingHours ?? '').toLowerCase().includes('24')) tags.push({ icon: '🕐', label: '24 Hours' });
-  if (spot.status === 'usually_available') tags.push({ icon: '✅', label: 'Often Free' });
-  if (spot.status === 'usually_busy') tags.push({ icon: '🔴', label: 'Often Full' });
-  if (Number(spot.averageRating ?? 0) >= 4.5) tags.push({ icon: '⭐', label: 'Top Rated' });
-  if (spot.reviewCount >= 5) tags.push({ icon: '💬', label: 'Popular' });
-  if (spot.totalSlots && spot.totalSlots >= 1000) tags.push({ icon: '🅿️', label: 'Large Lot' });
+function getHighlights(spot: ParkingSpot): { icon: IoniconsName; color?: string; label: string }[] {
+  const tags: { icon: IoniconsName; color?: string; label: string }[] = [];
+  if (spot.type === 'mall') tags.push({ icon: 'business-outline', label: 'Covered' });
+  if (spot.type === 'private_lot') tags.push({ icon: 'lock-closed-outline', label: 'Secured' });
+  if (spot.type === 'street') tags.push({ icon: 'partly-sunny-outline', label: 'Open Air' });
+  if ((spot.operatingHours ?? '').toLowerCase().includes('24')) tags.push({ icon: 'time-outline', label: '24 Hours' });
+  if (spot.status === 'usually_available') tags.push({ icon: 'checkmark-circle-outline', color: COLORS.success, label: 'Often Free' });
+  if (spot.status === 'usually_busy') tags.push({ icon: 'close-circle-outline', color: COLORS.danger, label: 'Often Full' });
+  if (Number(spot.averageRating ?? 0) >= 4.5) tags.push({ icon: 'star-outline', color: COLORS.star, label: 'Top Rated' });
+  if (spot.reviewCount >= 5) tags.push({ icon: 'chatbubble-outline', label: 'Popular' });
+  if (spot.totalSlots && spot.totalSlots >= 1000) tags.push({ icon: 'car-outline', label: 'Large Lot' });
   return tags;
 }
 
-const FACILITY_ICONS: Record<string, string> = {
-  'CCTV': '📹',
-  'Security Guard': '👮',
-  'Covered': '🏠',
-  'EV Charging': '⚡',
-  'Accessible Parking': '♿',
-  'Car Wash': '🚿',
-  'Gated': '🔒',
-  'Valet Parking': '🎫',
-  '24/7 Attendant': '🧑‍💼',
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+const FACILITY_ICONS: Record<string, IoniconsName> = {
+  'CCTV':                'videocam-outline',
+  'Security Guard':      'shield-outline',
+  'Covered':             'home-outline',
+  'EV Charging':         'flash-outline',
+  'Accessible Parking':  'accessibility-outline',
+  'Car Wash':            'water-outline',
+  'Gated':               'lock-closed-outline',
+  'Valet Parking':       'ticket-outline',
+  '24/7 Attendant':      'person-outline',
 };
 
 const TYPE_LABEL: Record<string, string> = { street: 'Street', mall: 'Mall', private_lot: 'Private' };
@@ -93,7 +96,11 @@ function StarRating({ rating, size = 16, onRate }: { rating: number; size?: numb
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1, 2, 3, 4, 5].map((s) => (
         <TouchableOpacity key={s} onPress={() => onRate?.(s)} disabled={!onRate} activeOpacity={0.7}>
-          <Text style={{ fontSize: size, color: s <= rating ? COLORS.star : COLORS.border }}>★</Text>
+          <Ionicons
+            name={s <= rating ? 'star' : 'star-outline'}
+            size={size}
+            color={s <= rating ? COLORS.star : COLORS.border}
+          />
         </TouchableOpacity>
       ))}
     </View>
@@ -107,7 +114,7 @@ function RouteCard({ distance }: { distance: number }) {
     <View style={routeStyles.card}>
       <View style={routeStyles.row}>
         <View style={routeStyles.item}>
-          <Text style={routeStyles.icon}>🚶</Text>
+          <Ionicons name="walk-outline" size={22} color={COLORS.textSecondary} />
           <View>
             <Text style={routeStyles.value}>{formatMinutes(walkMin)}</Text>
             <Text style={routeStyles.label}>Walking</Text>
@@ -115,7 +122,7 @@ function RouteCard({ distance }: { distance: number }) {
         </View>
         <View style={routeStyles.divider} />
         <View style={routeStyles.item}>
-          <Text style={routeStyles.icon}>🚗</Text>
+          <Ionicons name="car-outline" size={22} color={COLORS.textSecondary} />
           <View>
             <Text style={routeStyles.value}>{formatMinutes(driveMin)}</Text>
             <Text style={routeStyles.label}>By car</Text>
@@ -123,7 +130,7 @@ function RouteCard({ distance }: { distance: number }) {
         </View>
         <View style={routeStyles.divider} />
         <View style={routeStyles.item}>
-          <Text style={routeStyles.icon}>📍</Text>
+          <Ionicons name="location-outline" size={22} color={COLORS.textSecondary} />
           <View>
             <Text style={routeStyles.value}>{formatDistance(distance)}</Text>
             <Text style={routeStyles.label}>Distance</Text>
@@ -135,11 +142,11 @@ function RouteCard({ distance }: { distance: number }) {
   );
 }
 
-function VehicleRateRow({ icon, label, rate }: { icon: string; label: string; rate: VehicleRate }) {
+function VehicleRateRow({ icon, label, rate }: { icon: IoniconsName; label: string; rate: VehicleRate }) {
   return (
     <View style={rateStyles.vehicleBlock}>
       <View style={rateStyles.vehicleHeader}>
-        <Text style={rateStyles.vehicleIcon}>{icon}</Text>
+        <Ionicons name={icon} size={18} color={COLORS.textSecondary} />
         <Text style={rateStyles.vehicleLabel}>{label}</Text>
       </View>
       {rate.freeMinutes ? (
@@ -168,7 +175,10 @@ function VehicleRateRow({ icon, label, rate }: { icon: string; label: string; ra
       ) : null}
       {rate.overnightCharge ? (
         <View style={[rateStyles.rateRow, rateStyles.overnightRow]}>
-          <Text style={rateStyles.overnightLabel}>🌙 Overnight {rate.overnightCutoff ?? ''}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+            <Ionicons name="moon-outline" size={12} color={COLORS.textSecondary} />
+            <Text style={rateStyles.overnightLabel}>Overnight {rate.overnightCutoff ?? ''}</Text>
+          </View>
           <Text style={rateStyles.overnightValue}>+{peso(rate.overnightCharge)}</Text>
         </View>
       ) : null}
@@ -185,27 +195,30 @@ function DetailedRatesSection({ spot }: { spot: ParkingSpot }) {
     <View style={rateStyles.container}>
       <TouchableOpacity style={rateStyles.header} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
         <Text style={rateStyles.headerTitle}>Parking Rates</Text>
-        <Text style={rateStyles.chevron}>{expanded ? '▲' : '▼'}</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
       </TouchableOpacity>
 
       {expanded && (
         <View style={rateStyles.body}>
-          {dr.car && <VehicleRateRow icon="🚗" label="Four-Wheeler / Car" rate={dr.car} />}
+          {dr.car && <VehicleRateRow icon="car-outline" label="Four-Wheeler / Car" rate={dr.car} />}
           {dr.motorcycle && (
             <>
               {dr.car && <View style={rateStyles.vehicleDivider} />}
-              <VehicleRateRow icon="🏍️" label="Motorcycle" rate={dr.motorcycle} />
+              <VehicleRateRow icon="bicycle-outline" label="Motorcycle" rate={dr.motorcycle} />
             </>
           )}
           {dr.van && (
             <>
               <View style={rateStyles.vehicleDivider} />
-              <VehicleRateRow icon="🚐" label="Van / AUV" rate={dr.van} />
+              <VehicleRateRow icon="bus-outline" label="Van / AUV" rate={dr.van} />
             </>
           )}
           {dr.lostTicketFee ? (
             <View style={rateStyles.lostTicketRow}>
-              <Text style={rateStyles.lostTicketLabel}>⚠️  Lost ticket fee</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                <Ionicons name="warning-outline" size={13} color={COLORS.warning} />
+                <Text style={rateStyles.lostTicketLabel}>Lost ticket fee</Text>
+              </View>
               <Text style={rateStyles.lostTicketValue}>{peso(dr.lostTicketFee)}</Text>
             </View>
           ) : null}
@@ -221,10 +234,10 @@ function CarParkConditions({ rules }: { rules: string[] }) {
     <View style={condStyles.container}>
       <TouchableOpacity style={condStyles.header} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
         <View style={condStyles.headerLeft}>
-          <Text style={condStyles.headerIcon}>📋</Text>
+          <Ionicons name="document-text-outline" size={15} color={COLORS.textSecondary} />
           <Text style={condStyles.headerTitle}>Car Park Conditions</Text>
         </View>
-        <Text style={condStyles.chevron}>{expanded ? '▲' : '▼'}</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
       </TouchableOpacity>
       {expanded && (
         <View style={condStyles.body}>
@@ -248,7 +261,7 @@ function FacilitiesRow({ facilities }: { facilities: string[] }) {
       <View style={styles.facilitiesRow}>
         {facilities.map((f) => (
           <View key={f} style={styles.facilityChip}>
-            <Text style={styles.facilityIcon}>{FACILITY_ICONS[f] ?? '•'}</Text>
+            <Ionicons name={FACILITY_ICONS[f] ?? 'ellipse-outline'} size={13} color={COLORS.textSecondary} />
             <Text style={styles.facilityLabel}>{f}</Text>
           </View>
         ))}
@@ -263,7 +276,7 @@ function InlineAd() {
       <Text style={adStyles.sectionHeader}>Check out before parking</Text>
       <TouchableOpacity style={adStyles.card} activeOpacity={0.9}>
         <View style={adStyles.imageBg}>
-          <Text style={adStyles.imageEmoji}>🚗✨</Text>
+          <Ionicons name="car" size={40} color="rgba(255,255,255,0.7)" />
           <Text style={adStyles.imageCopy}>Get your car washed{'\n'}while you're parked!</Text>
         </View>
         <View style={adStyles.footer}>
@@ -281,11 +294,11 @@ function InlineAd() {
 // ─── Cost Calculator ─────────────────────────────────────────────────────────
 
 const DURATION_CHIPS = [60, 120, 180, 240] as const;
-const VEHICLE_OPTIONS: { type: PricingVehicleType; icon: string; label: string }[] = [
-  { type: 'car', icon: '🚗', label: 'Car' },
-  { type: 'motorcycle', icon: '🏍️', label: 'Moto' },
-  { type: 'van', icon: '🚐', label: 'Van' },
-  { type: 'truck', icon: '🚚', label: 'Truck' },
+const VEHICLE_OPTIONS: { type: PricingVehicleType; icon: IoniconsName; label: string }[] = [
+  { type: 'car',        icon: 'car-outline',     label: 'Car'   },
+  { type: 'motorcycle', icon: 'bicycle-outline',  label: 'Moto'  },
+  { type: 'van',        icon: 'bus-outline',      label: 'Van'   },
+  { type: 'truck',      icon: 'construct-outline', label: 'Truck' },
 ];
 
 function formatHHMM(date: Date) {
@@ -356,21 +369,21 @@ function TimePickerModal({
           <View style={calcStyles.pickerRow}>
             <View style={calcStyles.pickerCol}>
               <TouchableOpacity onPress={() => adjustH(1)} style={calcStyles.pickerBtn}>
-                <Text style={calcStyles.pickerArrow}>▲</Text>
+                <Ionicons name="chevron-up" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
               <Text style={calcStyles.pickerValue}>{(h % 12 === 0 ? 12 : h % 12).toString().padStart(2, '0')}</Text>
               <TouchableOpacity onPress={() => adjustH(-1)} style={calcStyles.pickerBtn}>
-                <Text style={calcStyles.pickerArrow}>▼</Text>
+                <Ionicons name="chevron-down" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
             <Text style={calcStyles.pickerColon}>:</Text>
             <View style={calcStyles.pickerCol}>
               <TouchableOpacity onPress={() => adjustM(15)} style={calcStyles.pickerBtn}>
-                <Text style={calcStyles.pickerArrow}>▲</Text>
+                <Ionicons name="chevron-up" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
               <Text style={calcStyles.pickerValue}>{m.toString().padStart(2, '0')}</Text>
               <TouchableOpacity onPress={() => adjustM(-15)} style={calcStyles.pickerBtn}>
-                <Text style={calcStyles.pickerArrow}>▼</Text>
+                <Ionicons name="chevron-down" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={calcStyles.pickerCol}>
@@ -458,10 +471,10 @@ function CostCalculatorSection({ spot }: { spot: ParkingSpot }) {
     <View style={calcStyles.container}>
       <TouchableOpacity style={calcStyles.header} onPress={() => setOpen((v) => !v)} activeOpacity={0.7}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={calcStyles.headerIcon}>🧮</Text>
+          <Ionicons name="calculator-outline" size={15} color={COLORS.text} />
           <Text style={calcStyles.headerTitle}>Calculate My Cost</Text>
         </View>
-        <Text style={calcStyles.chevron}>{open ? '▲' : '▼'}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
       </TouchableOpacity>
 
       {open && (
@@ -476,7 +489,7 @@ function CostCalculatorSection({ spot }: { spot: ParkingSpot }) {
                 onPress={() => setVehicleType(v.type)}
                 activeOpacity={0.7}
               >
-                <Text style={calcStyles.vehicleTabIcon}>{v.icon}</Text>
+                <Ionicons name={v.icon} size={16} color={vehicleType === v.type ? COLORS.primary : COLORS.textSecondary} />
                 <Text style={[calcStyles.vehicleTabLabel, vehicleType === v.type && calcStyles.vehicleTabLabelActive]}>
                   {v.label}
                 </Text>
@@ -571,7 +584,10 @@ function CostCalculatorSection({ spot }: { spot: ParkingSpot }) {
                 <View style={calcStyles.breakdownDivider} />
                 {breakdown.cap !== undefined && (
                   <View style={calcStyles.capRow}>
-                    <Text style={calcStyles.capLabel}>🔒 Daily max cap applied</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                      <Ionicons name="lock-closed-outline" size={12} color={COLORS.textSecondary} />
+                      <Text style={calcStyles.capLabel}>Daily max cap applied</Text>
+                    </View>
                     <Text style={calcStyles.capValue}>₱{breakdown.cap.toLocaleString()}</Text>
                   </View>
                 )}
@@ -584,11 +600,14 @@ function CostCalculatorSection({ spot }: { spot: ParkingSpot }) {
                 </Text>
               </View>
               {breakdown.warnings.map((w, i) => (
-                <Text key={i} style={calcStyles.warning}>⚠ {w}</Text>
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="warning-outline" size={13} color={COLORS.warning} />
+                  <Text style={calcStyles.warning}>{w}</Text>
+                </View>
               ))}
               <View style={[calcStyles.confidenceBadge, { backgroundColor: meta.bg }]}>
                 <Text style={[calcStyles.confidenceText, { color: meta.color }]}>
-                  {meta.label} · {confidence === 'high' ? '✓ Verified' : confidence === 'medium' ? 'Moderate confidence' : 'Use as rough estimate'}
+                  {meta.label} · {confidence === 'high' ? 'Verified' : confidence === 'medium' ? 'Moderate confidence' : 'Use as rough estimate'}
                 </Text>
               </View>
             </View>
@@ -675,11 +694,11 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
     Share.share({
       title: spot.name,
       message:
-        `🅿️ ${spot.name}${dist}\n` +
-        `📍 ${spot.address || TYPE_LABEL[spot.type]}\n` +
-        `💰 ${spot.rates || 'Rate not listed'}\n` +
-        `⏰ ${spot.operatingHours || 'Hours not listed'}\n` +
-        `⭐ ${Number(spot.averageRating ?? 0) > 0 ? Number(spot.averageRating).toFixed(1) : 'No ratings'}/5\n\n` +
+        `${spot.name}${dist}\n` +
+        `${spot.address || TYPE_LABEL[spot.type]}\n` +
+        `Rates: ${spot.rates || 'Not listed'}\n` +
+        `Hours: ${spot.operatingHours || 'Not listed'}\n` +
+        `Rating: ${Number(spot.averageRating ?? 0) > 0 ? Number(spot.averageRating).toFixed(1) : 'No ratings'}/5\n\n` +
         `Shared via Perch`,
     });
   }, [spot, distance]);
@@ -732,7 +751,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               </View>
               {spot.totalSlots ? (
                 <View style={styles.slotsChip}>
-                  <Text style={styles.slotsText}>🅿️ {spot.totalSlots.toLocaleString()} slots</Text>
+                  <Text style={styles.slotsText}>{spot.totalSlots.toLocaleString()} slots</Text>
                 </View>
               ) : null}
             </View>
@@ -750,11 +769,11 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
             {/* ── Actions ── */}
             <View style={styles.actions}>
               <TouchableOpacity style={styles.navigateBtn} onPress={handleNavigate} activeOpacity={0.85}>
-                <Text style={styles.btnIcon}>🗺️</Text>
+                <Ionicons name="navigate-outline" size={15} color={COLORS.textInverse} />
                 <Text style={styles.navigateBtnText}>Navigate</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
-                <Text style={styles.shareBtnIcon}>⬆</Text>
+                <Ionicons name="share-outline" size={15} color={COLORS.primary} />
                 <Text style={styles.shareBtnText}>Share</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -776,7 +795,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
                 }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.saveBtnIcon}>{isSaved ? '♥' : '♡'}</Text>
+                <Ionicons name={isSaved ? 'heart' : 'heart-outline'} size={15} color={isSaved ? COLORS.danger : COLORS.textSecondary} />
                 <Text style={styles.saveBtnText}>{isSaved ? 'Saved' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
@@ -794,7 +813,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               >
                 {highlights.map((h, i) => (
                   <View key={i} style={styles.highlightChip}>
-                    <Text style={styles.highlightIcon}>{h.icon}</Text>
+                    <Ionicons name={h.icon} size={12} color={h.color ?? COLORS.textSecondary} />
                     <Text style={styles.highlightLabel}>{h.label}</Text>
                   </View>
                 ))}
@@ -817,7 +836,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               {spot.address ? (
                 <>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailEmoji}>📍</Text>
+                    <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} style={styles.detailIcon} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.detailLabel}>ADDRESS</Text>
                       <Text style={styles.detailValue}>{spot.address}</Text>
@@ -827,7 +846,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
                 </>
               ) : null}
               <View style={styles.detailRow}>
-                <Text style={styles.detailEmoji}>💰</Text>
+                <Ionicons name="cash-outline" size={16} color={COLORS.textSecondary} style={styles.detailIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.detailLabel}>RATES SUMMARY</Text>
                   <Text style={styles.detailValue}>{spot.rates || 'Not specified'}</Text>
@@ -835,7 +854,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               </View>
               <View style={styles.detailDivider} />
               <View style={styles.detailRow}>
-                <Text style={styles.detailEmoji}>🕐</Text>
+                <Ionicons name="time-outline" size={16} color={COLORS.textSecondary} style={styles.detailIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.detailLabel}>OPERATING HOURS</Text>
                   <Text style={styles.detailValue}>{spot.operatingHours || 'Not specified'}</Text>
@@ -849,7 +868,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
                     onPress={() => Linking.openURL(`tel:${spot.contactNumber}`)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.detailEmoji}>📞</Text>
+                    <Ionicons name="call-outline" size={16} color={COLORS.textSecondary} style={styles.detailIcon} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.detailLabel}>CONTACT</Text>
                       <Text style={[styles.detailValue, { color: COLORS.primary }]}>{spot.contactNumber}</Text>
@@ -977,13 +996,11 @@ const styles = StyleSheet.create({
     flex: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 14, gap: 8,
   },
-  btnIcon: { fontSize: 18 },
-  navigateBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  navigateBtnText: { color: COLORS.textInverse, fontWeight: '700', fontSize: 15 },
   shareBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 14, paddingVertical: 14, gap: 6,
   },
-  shareBtnIcon: { fontSize: 16, color: COLORS.text, fontWeight: '700' },
   shareBtnText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
   saveBtn: {
     flex: 1,
@@ -995,9 +1012,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     gap: 6,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
   },
-  saveBtnIcon: { fontSize: 16, color: COLORS.text, fontWeight: '800' },
   saveBtnText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
 
   highlightsScroll: { marginBottom: 16 },
@@ -1007,7 +1023,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface, borderRadius: 20,
     paddingHorizontal: 14, paddingVertical: 9,
   },
-  highlightIcon: { fontSize: 15 },
   highlightLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
 
   facilitiesContainer: { marginBottom: 20 },
@@ -1019,12 +1034,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
     borderWidth: 1, borderColor: COLORS.border,
   },
-  facilityIcon: { fontSize: 14 },
   facilityLabel: { fontSize: 12, fontWeight: '600', color: COLORS.text },
 
   detailsCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, marginBottom: 16 },
   detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  detailEmoji: { fontSize: 20, marginTop: 2 },
+  detailIcon: { marginTop: 2 },
   detailLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 0.8, marginBottom: 3 },
   detailValue: { fontSize: 14, color: COLORS.text, fontWeight: '500', lineHeight: 20 },
   detailDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 12 },
@@ -1094,12 +1108,11 @@ const rateStyles = StyleSheet.create({
     paddingVertical: 14,
   },
   headerTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  chevron: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700' },
+
   body: { paddingHorizontal: 16, paddingVertical: 12 },
 
   vehicleBlock: { paddingVertical: 4 },
   vehicleHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  vehicleIcon: { fontSize: 18 },
   vehicleLabel: { fontSize: 14, fontWeight: '700', color: COLORS.text },
 
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
@@ -1112,7 +1125,7 @@ const rateStyles = StyleSheet.create({
     paddingHorizontal: 10,
     marginTop: 4,
   },
-  overnightLabel: { fontSize: 12, color: '#92400E', flex: 1 },
+  overnightLabel: { fontSize: 12, color: COLORS.warningText, flex: 1 },
   overnightValue: { fontSize: 12, fontWeight: '700', color: '#DC2626' },
 
   vehicleDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 10 },
@@ -1149,9 +1162,7 @@ const condStyles = StyleSheet.create({
     paddingVertical: 14,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerIcon: { fontSize: 16 },
-  headerTitle: { fontSize: 15, fontWeight: '700', color: '#78350F' },
-  chevron: { fontSize: 12, color: '#92400E', fontWeight: '700' },
+  headerTitle: { fontSize: 15, fontWeight: '700', color: COLORS.warningText },
   body: { paddingHorizontal: 16, paddingVertical: 12 },
   ruleRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   ruleNumber: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary, minWidth: 18 },
@@ -1169,9 +1180,7 @@ const calcStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: '#F0FDF4', paddingHorizontal: 16, paddingVertical: 14,
   },
-  headerIcon: { fontSize: 16 },
-  headerTitle: { fontSize: 15, fontWeight: '700', color: '#166534' },
-  chevron: { fontSize: 12, color: '#166534', fontWeight: '700' },
+  headerTitle: { fontSize: 15, fontWeight: '700', color: COLORS.success },
   body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16 },
 
   inputLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 0.8, marginBottom: 8 },
@@ -1182,7 +1191,7 @@ const calcStyles = StyleSheet.create({
     borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface,
   },
   vehicleTabActive: { borderColor: COLORS.primary, backgroundColor: '#EFF6FF' },
-  vehicleTabIcon: { fontSize: 18, marginBottom: 2 },
+  vehicleTabGap: { marginBottom: 2 },
   vehicleTabLabel: { fontSize: 11, fontWeight: '600', color: COLORS.textSecondary },
   vehicleTabLabelActive: { color: COLORS.primary },
 
@@ -1266,7 +1275,7 @@ const calcStyles = StyleSheet.create({
   pickerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   pickerCol: { alignItems: 'center', minWidth: 56 },
   pickerBtn: { padding: 10 },
-  pickerArrow: { fontSize: 18, color: COLORS.primary, fontWeight: '700' },
+
   pickerValue: { fontSize: 32, fontWeight: '900', color: COLORS.text, minWidth: 52, textAlign: 'center' },
   pickerColon: { fontSize: 32, fontWeight: '900', color: COLORS.text, marginBottom: 4 },
   pickerPreview: { fontSize: 15, color: COLORS.textSecondary, marginBottom: 20 },
@@ -1294,7 +1303,7 @@ const adStyles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
-  imageEmoji: { fontSize: 32 },
+
   imageCopy: { fontSize: 13, color: '#BFDBFE', textAlign: 'center', lineHeight: 18 },
   footer: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
   adTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },

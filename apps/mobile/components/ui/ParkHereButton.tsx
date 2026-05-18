@@ -1,6 +1,8 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useMapStore } from '../../store/mapStore';
+import { COLORS } from '../../constants';
 
 interface Props {
   userLocation: { latitude: number; longitude: number } | null;
@@ -18,7 +20,7 @@ export default function ParkHereButton({ userLocation }: Props) {
       activeOpacity={0.8}
       disabled={!userLocation}
     >
-      <Text style={styles.icon}>🚗</Text>
+      <Ionicons name="car-outline" size={16} color={COLORS.textInverse} />
       <Text style={styles.label}>{isParked ? 'Re-park' : 'Park Here'}</Text>
     </TouchableOpacity>
   );
@@ -31,7 +33,7 @@ const styles = StyleSheet.create({
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2563EB',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 24,
@@ -43,8 +45,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   btnParked: {
-    backgroundColor: '#F97316',
+    backgroundColor: COLORS.warning,
   },
-  icon: { fontSize: 15 },
-  label: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  label: { color: COLORS.textInverse, fontWeight: '600', fontSize: 13 },
 });
