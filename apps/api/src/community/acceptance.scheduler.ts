@@ -75,13 +75,13 @@ export class AcceptanceScheduler {
     for (const [userId, count] of tally) {
       const stats =
         (await this.statsRepo.findOne({ where: { userId } })) ??
-        this.statsRepo.create({ userId, tier: 'pigeon' });
+        this.statsRepo.create({ userId, tier: 'pigeon', contributionPoints: 0, acceptedReviewsCount: 0, acceptedPhotosCount: 0 });
 
-      stats.contributionPoints += pointsEach * count;
+      stats.contributionPoints = (stats.contributionPoints ?? 0) + pointsEach * count;
       stats.lastContributionAt = new Date();
 
-      if (kind === 'review') stats.acceptedReviewsCount += count;
-      else stats.acceptedPhotosCount += count;
+      if (kind === 'review') stats.acceptedReviewsCount = (stats.acceptedReviewsCount ?? 0) + count;
+      else stats.acceptedPhotosCount = (stats.acceptedPhotosCount ?? 0) + count;
 
       // Promote tier based on cumulative points.
       if (stats.tier === 'pigeon' && stats.contributionPoints >= TIER_HAWK_THRESHOLD) {
