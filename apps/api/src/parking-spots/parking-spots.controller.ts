@@ -30,6 +30,11 @@ export class ParkingSpotsController {
     return this.service.findById(id);
   }
 
+  @Get(':id/photos')
+  findPhotos(@Param('id') id: string) {
+    return this.service.findPhotos(id);
+  }
+
   @Post()
   @UseGuards(AdminGuard)
   create(@Body() dto: CreateParkingSpotDto) {

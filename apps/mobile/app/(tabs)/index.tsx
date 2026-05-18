@@ -20,7 +20,7 @@ type SearchedLocation = { latitude: number; longitude: number; label: string };
 
 export default function MapScreen() {
   const { coords } = useLocation();
-  const { selectedSpot, setSelectedSpot, loadParkedCar, parkedLocation } = useMapStore();
+  const { selectedSpot, setSelectedSpot, loadParkedCar, parkedLocation, pendingFocusSpot, setPendingFocusSpot } = useMapStore();
   const mapRef = useRef<any>(null);
   const [mapCenter, setMapCenter] = useState(coords);
   const [searchedLocation, setSearchedLocation] = useState<SearchedLocation | null>(null);
@@ -30,6 +30,21 @@ export default function MapScreen() {
   useEffect(() => {
     loadParkedCar();
   }, []);
+
+  // When navigating from Saved Spots, pan the map to the spot and open its sheet.
+  useEffect(() => {
+    if (!pendingFocusSpot || !mapRef.current) return;
+    mapRef.current.animateToRegion(
+      {
+        latitude: Number(pendingFocusSpot.latitude),
+        longitude: Number(pendingFocusSpot.longitude),
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      },
+      500,
+    );
+    setPendingFocusSpot(null);
+  }, [pendingFocusSpot]);
 
   // When user has searched a location, always fetch spots around that pin, not the scrolled map center
   useParkingSpots(

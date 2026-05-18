@@ -13,13 +13,14 @@ import {
   Platform,
   KeyboardAvoidingView,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { COLORS, OSM_TILE_URL } from '../../constants';
 import { useLocation } from '../../hooks/useLocation';
 import {
@@ -523,9 +524,11 @@ function localRateToVehicleRate(r: LocalVehicleRate): VehicleRate {
 function RateVehicleForm({
   rate,
   onChange,
+  penaltiesSection,
 }: {
   rate: LocalVehicleRate;
   onChange: (r: LocalVehicleRate) => void;
+  penaltiesSection?: React.ReactNode;
 }) {
   function set(patch: Partial<LocalVehicleRate>) {
     onChange({ ...rate, ...patch });
@@ -536,7 +539,7 @@ function RateVehicleForm({
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}
+      contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 80 }}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
@@ -757,6 +760,8 @@ function RateVehicleForm({
           />
         </View>
       )}
+
+      {penaltiesSection}
     </ScrollView>
   );
 }
@@ -840,47 +845,54 @@ function RateBuilderSheet({
           ))}
         </View>
 
-        {/* Vehicle form */}
-        <View style={{ flex: 1 }}>
-          <RateVehicleForm rate={activeRate} onChange={setActiveRate} />
-        </View>
-
-        {/* Penalties section */}
-        <View style={rb.penaltiesWrap}>
-          <TouchableOpacity
-            style={rb.penaltiesHeader}
-            onPress={() => setPenaltiesOpen((o) => !o)}
-            activeOpacity={0.75}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name={penaltiesOpen ? 'chevron-down' : 'add'} size={14} color={COLORS.textSecondary} />
-              <Text style={rb.penaltiesTitle}>Penalties & Notes</Text>
-            </View>
-          </TouchableOpacity>
-          {penaltiesOpen && (
-            <View style={rb.penaltiesBody}>
-              <View style={rb.rowInput}>
-                <Text style={rb.unit}>Lost ticket ₱</Text>
-                <TextInput
-                  style={[rb.input, { flex: 1 }]}
-                  value={lostTicket}
-                  onChangeText={(t) => setLostTicket(t.replace(/\D/g, ''))}
-                  placeholder="500"
-                  placeholderTextColor={COLORS.textSecondary}
-                  keyboardType="number-pad"
-                />
+        {/* Vehicle form + penalties — unified scroll with keyboard-avoid */}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <RateVehicleForm
+            rate={activeRate}
+            onChange={setActiveRate}
+            penaltiesSection={
+              <View style={{ marginTop: 8 }}>
+                <View style={rb.sectionDivider} />
+                <TouchableOpacity
+                  style={rb.penaltiesHeader}
+                  onPress={() => setPenaltiesOpen((o) => !o)}
+                  activeOpacity={0.75}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name={penaltiesOpen ? 'chevron-down' : 'add'} size={14} color={COLORS.textSecondary} />
+                    <Text style={rb.penaltiesTitle}>Penalties & Notes</Text>
+                  </View>
+                </TouchableOpacity>
+                {penaltiesOpen && (
+                  <View style={rb.penaltiesBody}>
+                    <View style={rb.rowInput}>
+                      <Text style={rb.unit}>Lost ticket ₱</Text>
+                      <TextInput
+                        style={[rb.input, { flex: 1 }]}
+                        value={lostTicket}
+                        onChangeText={(t) => setLostTicket(t.replace(/\D/g, ''))}
+                        placeholder="500"
+                        placeholderTextColor={COLORS.textSecondary}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                    <TextInput
+                      style={[rb.input, { minHeight: 60 }]}
+                      value={notes}
+                      onChangeText={setNotes}
+                      placeholder='e.g. "Free 2hr with ₱500 spend at SM Cinemas"'
+                      placeholderTextColor={COLORS.textSecondary}
+                      multiline
+                    />
+                  </View>
+                )}
               </View>
-              <TextInput
-                style={[rb.input, { minHeight: 60 }]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder='e.g. "Free 2hr with ₱500 spend at SM Cinemas"'
-                placeholderTextColor={COLORS.textSecondary}
-                multiline
-              />
-            </View>
-          )}
-        </View>
+            }
+          />
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );
@@ -1787,27 +1799,446 @@ const suc = StyleSheet.create({
 
 type VotingState = Record<string, boolean>;
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function timeAgo(iso: string): string {
+  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (secs < 60) return 'just now';
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
+
+function formatRate(rate: VehicleRate): string {
+  const parts: string[] = [];
+  if (rate.freeMinutes) parts.push(`${rate.freeMinutes}min free`);
+  if (rate.firstRate != null && rate.firstHours) {
+    parts.push(`₱${rate.firstRate} / ${rate.firstHours}hr`);
+    if (rate.succeedingRate != null) parts.push(`then ₱${rate.succeedingRate}/hr`);
+  } else if (rate.flatRate != null) {
+    parts.push(`₱${rate.flatRate} flat`);
+    if (rate.flatRateWindowStart && rate.flatRateWindowEnd) {
+      parts.push(`${rate.flatRateWindowStart}–${rate.flatRateWindowEnd}`);
+    }
+  }
+  if (rate.dailyMaxCap != null) parts.push(`max ₱${rate.dailyMaxCap}/day`);
+  return parts.join('  ·  ') || '—';
+}
+
+const VEHICLE_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  car: 'car-outline',
+  motorcycle: 'bicycle-outline',
+  van: 'bus-outline',
+};
+
+function DetailedRatesView({ rates }: { rates: DetailedRates }) {
+  const vehicles: { key: 'car' | 'motorcycle' | 'van'; label: string }[] = [
+    { key: 'car', label: 'Car' },
+    { key: 'motorcycle', label: 'Motorcycle' },
+    { key: 'van', label: 'Van' },
+  ];
+  const configured = vehicles.filter((v) => rates[v.key]);
+
+  if (!configured.length) return null;
+
+  return (
+    <View style={sdm.ratesBlock}>
+      <Text style={sdm.blockLabel}>Detailed Rates</Text>
+      {configured.map(({ key, label }) => (
+        <View key={key} style={sdm.rateRow}>
+          <View style={sdm.rateIcon}>
+            <Ionicons name={VEHICLE_ICONS[key]} size={14} color={COLORS.textSecondary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={sdm.rateLabel}>{label}</Text>
+            <Text style={sdm.rateValue}>{formatRate(rates[key]!)}</Text>
+          </View>
+        </View>
+      ))}
+      {(rates.lostTicketFee != null || rates.penaltyNotes || rates.notes) && (
+        <View style={sdm.penaltiesBlock}>
+          {rates.lostTicketFee != null && (
+            <Text style={sdm.penaltyText}>Lost ticket: ₱{rates.lostTicketFee}</Text>
+          )}
+          {rates.penaltyNotes ? <Text style={sdm.penaltyText}>{rates.penaltyNotes}</Text> : null}
+          {rates.notes ? <Text style={sdm.noteText}>{rates.notes}</Text> : null}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Spot Detail Modal ─────────────────────────────────────────────────────────
+
+function SpotDetailModal({
+  item,
+  visible,
+  onClose,
+  onVote,
+  votingApprove,
+  votingReject,
+}: {
+  item: ModerationQueueItem | null;
+  visible: boolean;
+  onClose: () => void;
+  onVote: (id: string, approve: boolean) => void;
+  votingApprove: boolean;
+  votingReject: boolean;
+}) {
+  const spot = item?.payload?.spot as {
+    name?: string;
+    type?: string;
+    rates?: string;
+    operatingHours?: string;
+    latitude?: number;
+    longitude?: number;
+    detailedRates?: DetailedRates;
+  } | undefined;
+
+  const { data: photos, isLoading: photosLoading } = useQuery({
+    queryKey: ['spot-photos', item?.targetParkingSpotId],
+    queryFn: () => parkingApi.getPhotos(item!.targetParkingSpotId!),
+    enabled: visible && !!item?.targetParkingSpotId,
+    staleTime: 60_000,
+  });
+
+  const TYPE_LABEL: Record<string, string> = {
+    street: 'Street Parking',
+    mall: 'Mall Parking',
+    private_lot: 'Private Lot',
+  };
+
+  if (!item) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={sdm.sheet} edges={['top']}>
+        {/* Header */}
+        <View style={sdm.header}>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Ionicons name="close" size={22} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={sdm.headerTitle}>Review Submission</Text>
+          <View style={{ width: 22 }} />
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={sdm.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Photo gallery */}
+          {photosLoading ? (
+            <View style={sdm.photoPlaceholder}>
+              <ActivityIndicator color={COLORS.primary} />
+            </View>
+          ) : photos && photos.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={sdm.photoStrip}
+              style={sdm.photoScroll}
+            >
+              {photos.map((p) => (
+                <Image
+                  key={p.id}
+                  source={{ uri: p.publicUrl }}
+                  style={sdm.photo}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={sdm.photoPlaceholder}>
+              <Ionicons name="camera-outline" size={28} color={COLORS.textTertiary} />
+              <Text style={sdm.photoPlaceholderText}>No photos attached</Text>
+            </View>
+          )}
+
+          {/* Meta pills */}
+          <View style={sdm.metaRow}>
+            <View style={sdm.kindPill}>
+              <Text style={sdm.kindText}>{item.kind.replace(/_/g, ' ')}</Text>
+            </View>
+            <View style={[sdm.tierPill, { backgroundColor: COLORS.surface }]}>
+              <Ionicons name="person-outline" size={11} color={COLORS.textSecondary} />
+              <Text style={sdm.tierText}>{item.submitterTier ?? 'pigeon'} contributor</Text>
+            </View>
+            <Text style={sdm.timeAgo}>{timeAgo(item.createdAt)}</Text>
+          </View>
+
+          {/* Spot name */}
+          <Text style={sdm.spotName}>{spot?.name ?? 'Unnamed spot'}</Text>
+
+          {/* Score chips */}
+          <View style={sdm.scoreRow}>
+            <View style={[sdm.scorePill, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="checkmark" size={13} color="#16A34A" />
+              <Text style={[sdm.scoreNum, { color: '#16A34A' }]}>{item.approvalScore} approval</Text>
+            </View>
+            <View style={[sdm.scorePill, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="close" size={13} color="#DC2626" />
+              <Text style={[sdm.scoreNum, { color: '#DC2626' }]}>{item.rejectionScore} rejection</Text>
+            </View>
+          </View>
+
+          {/* Info rows */}
+          <View style={sdm.infoBlock}>
+            {spot?.type && (
+              <View style={sdm.infoRow}>
+                <View style={sdm.infoIconWrap}>
+                  <Ionicons name="car-outline" size={15} color={COLORS.textSecondary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={sdm.infoLabel}>Type</Text>
+                  <Text style={sdm.infoValue}>{TYPE_LABEL[spot.type] ?? spot.type}</Text>
+                </View>
+              </View>
+            )}
+            {spot?.operatingHours && (
+              <View style={sdm.infoRow}>
+                <View style={sdm.infoIconWrap}>
+                  <Ionicons name="time-outline" size={15} color={COLORS.textSecondary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={sdm.infoLabel}>Hours</Text>
+                  <Text style={sdm.infoValue}>{spot.operatingHours}</Text>
+                </View>
+              </View>
+            )}
+            {spot?.rates && (
+              <View style={sdm.infoRow}>
+                <View style={sdm.infoIconWrap}>
+                  <Ionicons name="pricetag-outline" size={15} color={COLORS.textSecondary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={sdm.infoLabel}>Rates</Text>
+                  <Text style={sdm.infoValue}>{spot.rates}</Text>
+                </View>
+              </View>
+            )}
+            {spot?.latitude != null && spot?.longitude != null && (
+              <View style={sdm.infoRow}>
+                <View style={sdm.infoIconWrap}>
+                  <Ionicons name="location-outline" size={15} color={COLORS.textSecondary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={sdm.infoLabel}>Coordinates</Text>
+                  <Text style={sdm.infoValue}>
+                    {Number(spot.latitude).toFixed(6)}, {Number(spot.longitude).toFixed(6)}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Detailed rates breakdown */}
+          {spot?.detailedRates && Object.keys(spot.detailedRates).some(
+            (k) => ['car', 'motorcycle', 'van'].includes(k)
+          ) && (
+            <DetailedRatesView rates={spot.detailedRates} />
+          )}
+
+          <View style={{ height: 24 }} />
+        </ScrollView>
+
+        {/* Sticky vote bar */}
+        <SafeAreaView edges={['bottom']} style={sdm.voteBar}>
+          <TouchableOpacity
+            style={[sdm.voteBtn, sdm.rejectBtn, votingReject && sdm.voteBtnLoading]}
+            onPress={() => onVote(item.id, false)}
+            disabled={votingApprove || votingReject}
+            activeOpacity={0.8}
+          >
+            {votingReject ? (
+              <ActivityIndicator size="small" color="#DC2626" />
+            ) : (
+              <>
+                <Ionicons name="close-circle" size={18} color="#DC2626" />
+                <Text style={sdm.rejectText}>Reject</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[sdm.voteBtn, sdm.approveBtn, votingApprove && sdm.voteBtnLoading]}
+            onPress={() => onVote(item.id, true)}
+            disabled={votingApprove || votingReject}
+            activeOpacity={0.8}
+          >
+            {votingApprove ? (
+              <ActivityIndicator size="small" color="#16A34A" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                <Text style={sdm.approveText}>Approve</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </SafeAreaView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const sdm = StyleSheet.create({
+  sheet: { flex: 1, backgroundColor: COLORS.background },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  headerTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  scrollContent: { paddingBottom: 16 },
+
+  // Photos
+  photoScroll: { maxHeight: 220 },
+  photoStrip: { paddingHorizontal: 16, gap: 8, paddingVertical: 14 },
+  photo: { width: 280, height: 190, borderRadius: 12, backgroundColor: COLORS.border },
+  photoPlaceholder: {
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.surface,
+    marginHorizontal: 16,
+    marginVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  photoPlaceholderText: { fontSize: 13, color: COLORS.textTertiary },
+
+  // Meta
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 10, flexWrap: 'wrap' },
+  kindPill: {
+    backgroundColor: COLORS.primary + '18',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  kindText: { color: COLORS.primary, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
+  tierPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  tierText: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600' },
+  timeAgo: { fontSize: 11, color: COLORS.textTertiary, fontWeight: '500' },
+
+  // Name
+  spotName: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.4, paddingHorizontal: 16, marginBottom: 10 },
+
+  // Scores
+  scoreRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 16 },
+  scorePill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  scoreNum: { fontWeight: '700', fontSize: 13 },
+
+  // Info block
+  infoBlock: {
+    marginHorizontal: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+    gap: 12,
+  },
+  infoIconWrap: { width: 22, alignItems: 'center', paddingTop: 2 },
+  infoLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
+  infoValue: { fontSize: 14, fontWeight: '600', color: COLORS.text, lineHeight: 20 },
+
+  // Detailed rates
+  ratesBlock: {
+    marginHorizontal: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+    gap: 12,
+    marginBottom: 14,
+  },
+  blockLabel: { fontSize: 11, fontWeight: '800', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.7 },
+  rateRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  rateIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    backgroundColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  rateLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+  rateValue: { fontSize: 13, fontWeight: '600', color: COLORS.text, lineHeight: 18 },
+  penaltiesBlock: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border, paddingTop: 12, gap: 4 },
+  penaltyText: { fontSize: 12, color: COLORS.danger, fontWeight: '600' },
+  noteText: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17 },
+
+  // Vote bar
+  voteBar: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.background,
+  },
+  voteBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    borderRadius: 12,
+    paddingVertical: 15,
+  },
+  voteBtnLoading: { opacity: 0.6 },
+  rejectBtn: { backgroundColor: '#FEE2E2' },
+  approveBtn: { backgroundColor: '#DCFCE7' },
+  rejectText: { color: '#DC2626', fontWeight: '700', fontSize: 15 },
+  approveText: { color: '#16A34A', fontWeight: '700', fontSize: 15 },
+});
+
 function QueueCard({
   item,
-  onVote,
-  voting,
+  onPress,
 }: {
   item: ModerationQueueItem;
-  onVote: (id: string, approve: boolean) => void;
-  voting: boolean;
+  onPress: () => void;
 }) {
   const spot = item.payload?.spot as
     | { name?: string; type?: string; rates?: string; operatingHours?: string }
     | undefined;
 
   return (
-    <View style={mds.card}>
+    <TouchableOpacity style={mds.card} onPress={onPress} activeOpacity={0.75}>
       <View style={mds.cardTop}>
         <View style={mds.kindPill}>
           <Text style={mds.kindText}>{item.kind.replace(/_/g, ' ')}</Text>
         </View>
         <Text style={mds.submitterText}>
-          by {(item as any).submitterTier ?? 'pigeon'} contributor
+          {item.submitterTier ?? 'pigeon'} contributor · {timeAgo(item.createdAt)}
         </Text>
       </View>
 
@@ -1820,56 +2251,31 @@ function QueueCard({
         </Text>
       )}
 
-      <View style={mds.scoreRow}>
-        <View style={[mds.scorePill, { backgroundColor: '#DCFCE7' }]}>
-          <Ionicons name="checkmark" size={12} color="#16A34A" />
-          <Text style={[mds.scoreNum, { color: '#16A34A' }]}>{item.approvalScore}</Text>
+      <View style={mds.cardFooter}>
+        <View style={mds.scoreRow}>
+          <View style={[mds.scorePill, { backgroundColor: '#DCFCE7' }]}>
+            <Ionicons name="checkmark" size={12} color="#16A34A" />
+            <Text style={[mds.scoreNum, { color: '#16A34A' }]}>{item.approvalScore}</Text>
+          </View>
+          <View style={[mds.scorePill, { backgroundColor: '#FEE2E2' }]}>
+            <Ionicons name="close" size={12} color="#DC2626" />
+            <Text style={[mds.scoreNum, { color: '#DC2626' }]}>{item.rejectionScore}</Text>
+          </View>
         </View>
-        <View style={[mds.scorePill, { backgroundColor: '#FEE2E2' }]}>
-          <Ionicons name="close" size={12} color="#DC2626" />
-          <Text style={[mds.scoreNum, { color: '#DC2626' }]}>{item.rejectionScore}</Text>
+        <View style={mds.reviewCta}>
+          <Text style={mds.reviewCtaText}>Review</Text>
+          <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
         </View>
       </View>
-
-      <View style={mds.voteRow}>
-        <TouchableOpacity
-          style={[mds.voteBtn, mds.rejectBtn]}
-          onPress={() => onVote(item.id, false)}
-          disabled={voting}
-          activeOpacity={0.8}
-        >
-          {voting ? (
-            <ActivityIndicator size="small" color="#DC2626" />
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <Ionicons name="close" size={15} color="#DC2626" />
-              <Text style={mds.rejectText}>Reject</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[mds.voteBtn, mds.approveBtn]}
-          onPress={() => onVote(item.id, true)}
-          disabled={voting}
-          activeOpacity={0.8}
-        >
-          {voting ? (
-            <ActivityIndicator size="small" color="#16A34A" />
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <Ionicons name="checkmark" size={15} color="#16A34A" />
-              <Text style={mds.approveText}>Approve</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 function ModerationSection() {
   const [page, setPage] = useState(1);
-  const [votingIds, setVotingIds] = useState<VotingState>({});
+  const [selectedItem, setSelectedItem] = useState<ModerationQueueItem | null>(null);
+  const [votingApprove, setVotingApprove] = useState(false);
+  const [votingReject, setVotingReject] = useState(false);
 
   const { data, isLoading, refetch, isFetching } = useQuery<ModerationQueuePage>({
     queryKey: ['moderation-queue', page],
@@ -1883,19 +2289,31 @@ function ModerationSection() {
   const total = data?.total ?? 0;
 
   async function handleVote(itemId: string, approve: boolean) {
-    setVotingIds((s) => ({ ...s, [itemId]: true }));
+    if (approve) setVotingApprove(true);
+    else setVotingReject(true);
     try {
       await moderationApi.vote(itemId, approve);
+      setSelectedItem(null);
       await refetch();
     } catch {
       Alert.alert('Error', 'Could not cast vote. Please try again.');
     } finally {
-      setVotingIds((s) => ({ ...s, [itemId]: false }));
+      setVotingApprove(false);
+      setVotingReject(false);
     }
   }
 
   return (
     <View style={mds.wrap}>
+      <SpotDetailModal
+        item={selectedItem}
+        visible={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+        onVote={handleVote}
+        votingApprove={votingApprove}
+        votingReject={votingReject}
+      />
+
       {/* Header row */}
       <View style={mds.headerRow}>
         <Text style={mds.sectionTitle}>Moderation Queue</Text>
@@ -1923,8 +2341,7 @@ function ModerationSection() {
               <QueueCard
                 key={item.id}
                 item={item}
-                onVote={handleVote}
-                voting={!!votingIds[item.id]}
+                onPress={() => setSelectedItem(item)}
               />
             ))}
           </View>
@@ -2065,15 +2482,31 @@ const mds = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.textSecondary,
   },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  reviewCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  reviewCtaText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
 });
 
 // ─── Landing View ─────────────────────────────────────────────────────────────
 
-function LandingView({ onStart }: { onStart: () => void }) {
+function LandingView({ onStart, refreshing, onRefresh }: { onStart: () => void; refreshing: boolean; onRefresh: () => void }) {
   return (
     <ScrollView
       contentContainerStyle={lv.scroll}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
     >
       {/* Hero CTA */}
       <TouchableOpacity style={lv.heroCard} onPress={onStart} activeOpacity={0.88}>
@@ -2127,6 +2560,14 @@ const lv = StyleSheet.create({
 
 export default function ContributeScreen() {
   const { coords, hasPermission } = useLocation();
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ['moderation-queue'] });
+    setRefreshing(false);
+  }
 
   // Wizard navigation
   const [wizardActive, setWizardActive] = useState(false);
@@ -2323,7 +2764,7 @@ export default function ContributeScreen() {
           <Text style={main.title}>Contribute</Text>
           <Text style={main.subtitle}>Add spots · Review submissions</Text>
         </View>
-        <LandingView onStart={() => { setWizardActive(true); setStep(0); }} />
+        <LandingView onStart={() => { setWizardActive(true); setStep(0); }} refreshing={refreshing} onRefresh={onRefresh} />
       </SafeAreaView>
     );
   }
