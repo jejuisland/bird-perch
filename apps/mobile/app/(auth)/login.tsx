@@ -59,6 +59,13 @@ export default function LoginScreen() {
           <PerchLogo showTagline />
         </View>
 
+        <Text style={styles.title}>Sign In</Text>
+        <Text style={styles.subtitle}>
+          {mode === 'otp'
+            ? 'Enter your email and we\'ll send a one-time code.'
+            : 'Sign in with your email and password.'}
+        </Text>
+
         {/* Mode toggle */}
         <View style={styles.modeRow}>
           <TouchableOpacity
@@ -78,13 +85,6 @@ export default function LoginScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.title}>Sign In</Text>
-        <Text style={styles.subtitle}>
-          {mode === 'otp'
-            ? 'Enter your email and we\'ll send a one-time code.'
-            : 'Sign in with your email and password.'}
-        </Text>
 
         <View style={styles.form}>
           <TextInput
@@ -119,7 +119,7 @@ export default function LoginScreen() {
             disabled={loading || (mode === 'otp' ? !canSubmitOtp : !canSubmitPassword)}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={COLORS.textInverse} />
             ) : (
               <Text style={styles.btnText}>
                 {mode === 'otp' ? 'Get Code →' : 'Sign In →'}
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   modeBtnTextActive: {
-    color: '#fff',
+    color: COLORS.textInverse,
   },
 
   title: { fontSize: 24, fontWeight: '800', color: COLORS.text, marginBottom: 6 },
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     padding: 16, alignItems: 'center',
   },
   btnDisabled: { opacity: 0.45 },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  btnText: { color: COLORS.textInverse, fontWeight: '700', fontSize: 16 },
 
   footer: {
     flexDirection: 'row',

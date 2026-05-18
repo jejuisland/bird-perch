@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 
 interface Props {
@@ -43,7 +44,7 @@ export default function NavigationBanner({ spotName, distanceM, durationSec, isR
   return (
     <View style={styles.container}>
       <View style={styles.iconBox}>
-        <Text style={styles.icon}>🚗</Text>
+        <Ionicons name="car-outline" size={18} color={COLORS.textInverse} />
       </View>
 
       <View style={styles.info}>
@@ -89,9 +90,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  icon: { fontSize: 18 },
   info: { flex: 1 },
-  name: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  name: { fontSize: 13, fontWeight: '700', color: COLORS.textInverse },
   sub: { fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
   badge: {
     backgroundColor: 'rgba(255,255,255,0.25)',
@@ -99,5 +99,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  badgeText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  badgeText: { fontSize: 12, fontWeight: '700', color: COLORS.textInverse },
 });

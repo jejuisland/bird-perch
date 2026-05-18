@@ -9,6 +9,7 @@ import {
   Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import {
   COLORS,
@@ -66,20 +67,19 @@ function TierCard({ tier, points, accuracy, verifiedSpots, acceptedReviews, stre
   const currentThreshold = TIER_THRESHOLDS[tierKey] ?? 0;
   const pointsToNext = nextThreshold ? nextThreshold - points : null;
 
-  const TIER_EMOJI: Record<string, string> = { pigeon: '🐦', hawk: '🦅', eagle: '🦅' };
-
   return (
     <View style={tc_styles.card}>
       {/* Tier badge row */}
       <View style={tc_styles.badgeRow}>
         <View style={[tc_styles.badge, { backgroundColor: tc.bg, borderColor: tc.border }]}>
           <Text style={[tc_styles.badgeTier, { color: tc.text }]}>
-            {TIER_EMOJI[tierKey] ?? '🐦'}  {tierKey.toUpperCase()}
+            {tierKey.toUpperCase()}
           </Text>
         </View>
         {streakDays != null && streakDays > 0 && (
           <View style={tc_styles.streakBadge}>
-            <Text style={tc_styles.streakText}>🔥  {streakDays}d streak</Text>
+            <Ionicons name="flame" size={13} color={COLORS.warning} />
+            <Text style={tc_styles.streakText}>{streakDays}d streak</Text>
           </View>
         )}
       </View>
@@ -144,14 +144,17 @@ const tc_styles = StyleSheet.create({
   },
   badgeTier: { fontSize: 13, fontWeight: '800', letterSpacing: 0.4 },
   streakBadge: {
-    backgroundColor: '#FEF3C7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.warningLight,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderWidth: 1,
     borderColor: '#FDE68A',
   },
-  streakText: { fontSize: 12, fontWeight: '700', color: '#D97706' },
+  streakText: { fontSize: 12, fontWeight: '700', color: COLORS.warningText },
   progressWrap: { gap: 5 },
   progressTrack: {
     height: 6,
@@ -184,9 +187,9 @@ const tc_styles = StyleSheet.create({
 
 function InfoCard({ user }: { user: any }) {
   const VEHICLE_LABEL: Record<string, string> = {
-    car: '🚗  Car',
-    motorcycle: '🏍  Motorcycle',
-    van: '🚐  Van',
+    car: 'Car',
+    motorcycle: 'Motorcycle',
+    van: 'Van',
   };
 
   return (
@@ -262,7 +265,7 @@ function SavedSpotsCard({ spots, loading }: { spots: ParkingSpot[]; loading: boo
       <Text style={sv.title}>Saved Spots</Text>
       {spots.length === 0 ? (
         <View style={sv.emptyWrap}>
-          <Text style={sv.emptyIcon}>🅿</Text>
+          <Ionicons name="bookmark-outline" size={32} color={COLORS.textTertiary} />
           <Text style={sv.emptyText}>No saved spots yet</Text>
           <Text style={sv.emptySub}>Tap the bookmark on any spot to save it</Text>
         </View>
@@ -278,7 +281,7 @@ function SavedSpotsCard({ spots, loading }: { spots: ParkingSpot[]; loading: boo
                   {spot.communityVerification === 'unverified' ? '  ·  Pending review' : '  ·  Verified'}
                 </Text>
               </View>
-              <Text style={sv.chevron}>›</Text>
+              <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </React.Fragment>
         ))
@@ -313,7 +316,6 @@ const sv = StyleSheet.create({
     gap: 12,
   },
   emptyWrap: { alignItems: 'center', paddingVertical: 24, gap: 6 },
-  emptyIcon: { fontSize: 32 },
   emptyText: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   emptySub: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
   row: {
@@ -325,14 +327,12 @@ const sv = StyleSheet.create({
   divider: { height: 1, backgroundColor: COLORS.border },
   spotName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   spotMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2, textTransform: 'capitalize' },
-  chevron: { fontSize: 20, color: COLORS.textSecondary },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
-
   const statsQuery = useQuery({
     queryKey: ['contributor-stats'],
     queryFn: () => contributorsApi.me(),
@@ -392,7 +392,6 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );

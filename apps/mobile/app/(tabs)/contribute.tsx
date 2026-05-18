@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
@@ -72,7 +73,7 @@ function StepIndicator({ step }: { step: number }) {
           <View style={si.item}>
             <View style={[si.dot, i < step && si.dotDone, i === step && si.dotActive]}>
               {i < step ? (
-                <Text style={si.check}>✓</Text>
+                <Ionicons name="checkmark" size={13} color={COLORS.textInverse} />
               ) : (
                 <Text style={[si.num, i === step && si.numActive]}>{i + 1}</Text>
               )}
@@ -110,14 +111,13 @@ const si = StyleSheet.create({
     justifyContent: 'center',
   },
   dotActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  dotDone: { backgroundColor: '#16A34A', borderColor: '#16A34A' },
-  check: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  dotDone: { backgroundColor: COLORS.success, borderColor: COLORS.success },
   num: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
-  numActive: { color: '#fff' },
+  numActive: { color: COLORS.textInverse },
   label: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600', letterSpacing: 0.2 },
   labelActive: { color: COLORS.primary },
   line: { flex: 1, height: 1.5, backgroundColor: COLORS.border, marginBottom: 14, marginHorizontal: 3 },
-  lineDone: { backgroundColor: '#16A34A' },
+  lineDone: { backgroundColor: COLORS.success },
 });
 
 // ─── SegmentedToggle ──────────────────────────────────────────────────────────
@@ -300,7 +300,7 @@ function LocationStep({
   if (!hasPermission) {
     return (
       <View style={ls.permBox}>
-        <Text style={ls.permIcon}>📍</Text>
+        <Ionicons name="location-outline" size={52} color={COLORS.textSecondary} />
         <Text style={ls.permTitle}>Location Access Needed</Text>
         <Text style={ls.permBody}>
           Enable location in your device Settings so we can place your spot accurately on the map.
@@ -360,13 +360,19 @@ function LocationStep({
           </View>
         ) : closestSpot ? (
           <>
-            <Text style={ls.warnTitle}>⚠️  Spot found {closestDist}m away</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="warning-outline" size={16} color={COLORS.warning} />
+              <Text style={ls.warnTitle}>Spot found {closestDist}m away</Text>
+            </View>
             <Text style={ls.warnSub}>
               "{closestSpot.name}" is already here. Is this a different spot?
             </Text>
           </>
         ) : (
-          <Text style={ls.okText}>✓  No duplicates found — good to go</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="checkmark-circle-outline" size={16} color={COLORS.success} />
+            <Text style={ls.okText}>No duplicates found — good to go</Text>
+          </View>
         )}
       </View>
 
@@ -389,7 +395,7 @@ const ls = StyleSheet.create({
     padding: 40,
     gap: 14,
   },
-  permIcon: { fontSize: 52 },
+
   permTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
   permBody: {
     fontSize: 14,
@@ -435,9 +441,9 @@ const ls = StyleSheet.create({
   inlineRow: { flexDirection: 'row', alignItems: 'center' },
   floatTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   floatSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3 },
-  warnTitle: { fontSize: 14, fontWeight: '700', color: '#D97706' },
+  warnTitle: { fontSize: 14, fontWeight: '700', color: COLORS.warning },
   warnSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4, lineHeight: 18 },
-  okText: { fontSize: 14, fontWeight: '700', color: '#16A34A' },
+  okText: { fontSize: 14, fontWeight: '700', color: COLORS.success },
 });
 
 // ─── Rate Builder Sheet ───────────────────────────────────────────────────────
@@ -846,9 +852,10 @@ function RateBuilderSheet({
             onPress={() => setPenaltiesOpen((o) => !o)}
             activeOpacity={0.75}
           >
-            <Text style={rb.penaltiesTitle}>
-              {penaltiesOpen ? '▼' : '+'} Penalties & Notes
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name={penaltiesOpen ? 'chevron-down' : 'add'} size={14} color={COLORS.textSecondary} />
+              <Text style={rb.penaltiesTitle}>Penalties & Notes</Text>
+            </View>
           </TouchableOpacity>
           {penaltiesOpen && (
             <View style={rb.penaltiesBody}>
@@ -1086,9 +1093,17 @@ function DetailsStep({
                 onPress={() => setRateBuilderVisible(true)}
                 activeOpacity={0.75}
               >
-                <Text style={[ds.detailedRatesCtaText, hasDetailedRates && ds.detailedRatesCtaTextActive]}>
-                  {hasDetailedRates ? '✓  Detailed rates configured  ›' : '+ Add detailed rates  ›'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons
+                    name={hasDetailedRates ? 'checkmark-circle' : 'add-circle-outline'}
+                    size={15}
+                    color={hasDetailedRates ? COLORS.success : COLORS.primary}
+                  />
+                  <Text style={[ds.detailedRatesCtaText, hasDetailedRates && ds.detailedRatesCtaTextActive]}>
+                    {hasDetailedRates ? 'Detailed rates configured' : 'Add detailed rates'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={hasDetailedRates ? COLORS.success : COLORS.primary} />
+                </View>
               </TouchableOpacity>
 
               <RateBuilderSheet
@@ -1297,8 +1312,11 @@ function PhotosStep({
           activeOpacity={0.75}
         >
           <View style={ps.tipHeader}>
-            <Text style={ps.tipTitle}>📸  What makes a good photo?</Text>
-            <Text style={ps.tipChevron}>{tipOpen ? '▲' : '▼'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="camera-outline" size={15} color={COLORS.textSecondary} />
+              <Text style={ps.tipTitle}>What makes a good photo?</Text>
+            </View>
+            <Ionicons name={tipOpen ? 'chevron-up' : 'chevron-down'} size={15} color={COLORS.textSecondary} />
           </View>
           {tipOpen && (
             <View style={ps.tipBody}>
@@ -1350,7 +1368,7 @@ function PhotosStep({
 
                 {photo.storagePath && !photo.error && (
                   <View style={ps.checkBadge}>
-                    <Text style={ps.checkMark}>✓</Text>
+                    <Ionicons name="checkmark" size={11} color={COLORS.textInverse} />
                   </View>
                 )}
               </View>
@@ -1423,7 +1441,6 @@ const ps = StyleSheet.create({
   },
   tipHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   tipTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  tipChevron: { fontSize: 10, color: COLORS.textSecondary },
   tipBody: { marginTop: 10, gap: 5 },
   tipItem: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -1467,7 +1484,6 @@ const ps = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkMark: { color: '#fff', fontSize: 9, fontWeight: '800' },
   addZone: {
     borderWidth: 2,
     borderColor: COLORS.primary,
@@ -1605,7 +1621,7 @@ function ConfirmStep({
 
         {/* Community note */}
         <View style={cs.infoBox}>
-          <Text style={cs.infoIcon}>🏘️</Text>
+          <Ionicons name="people-outline" size={22} color={COLORS.primary} />
           <View style={{ flex: 1, gap: 3 }}>
             <Text style={cs.infoTitle}>Community review process</Text>
             <Text style={cs.infoBody}>
@@ -1686,7 +1702,6 @@ const cs = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
   },
-  infoIcon: { fontSize: 22 },
   infoTitle: { fontSize: 14, fontWeight: '800', color: '#1E40AF' },
   infoBody: { fontSize: 13, color: '#1E40AF', lineHeight: 18 },
 });
@@ -1697,7 +1712,7 @@ function SuccessScreen({ onDone }: { onDone: () => void }) {
   return (
     <View style={suc.wrap}>
       <View style={suc.iconWrap}>
-        <Text style={suc.iconText}>✓</Text>
+        <Ionicons name="checkmark" size={42} color={COLORS.success} />
       </View>
       <Text style={suc.title}>Spot submitted!</Text>
       <Text style={suc.body}>
@@ -1705,7 +1720,8 @@ function SuccessScreen({ onDone }: { onDone: () => void }) {
         toward Hawk tier.
       </Text>
       <View style={suc.pointBadge}>
-        <Text style={suc.pointText}>🐦  +10 points when verified</Text>
+        <Ionicons name="star-outline" size={14} color={COLORS.primary} />
+        <Text style={suc.pointText}>+10 points when verified</Text>
       </View>
       <TouchableOpacity style={suc.btn} onPress={onDone} activeOpacity={0.85}>
         <Text style={suc.btnText}>Done</Text>
@@ -1732,7 +1748,7 @@ const suc = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  iconText: { fontSize: 38, color: '#16A34A' },
+
   title: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   body: {
     fontSize: 15,
@@ -1741,6 +1757,9 @@ const suc = StyleSheet.create({
     lineHeight: 22,
   },
   pointBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#EFF6FF',
     borderRadius: 20,
     paddingHorizontal: 18,
@@ -1803,10 +1822,12 @@ function QueueCard({
 
       <View style={mds.scoreRow}>
         <View style={[mds.scorePill, { backgroundColor: '#DCFCE7' }]}>
-          <Text style={[mds.scoreNum, { color: '#16A34A' }]}>✓  {item.approvalScore}</Text>
+          <Ionicons name="checkmark" size={12} color="#16A34A" />
+          <Text style={[mds.scoreNum, { color: '#16A34A' }]}>{item.approvalScore}</Text>
         </View>
         <View style={[mds.scorePill, { backgroundColor: '#FEE2E2' }]}>
-          <Text style={[mds.scoreNum, { color: '#DC2626' }]}>✗  {item.rejectionScore}</Text>
+          <Ionicons name="close" size={12} color="#DC2626" />
+          <Text style={[mds.scoreNum, { color: '#DC2626' }]}>{item.rejectionScore}</Text>
         </View>
       </View>
 
@@ -1820,7 +1841,10 @@ function QueueCard({
           {voting ? (
             <ActivityIndicator size="small" color="#DC2626" />
           ) : (
-            <Text style={mds.rejectText}>✗  Reject</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Ionicons name="close" size={15} color="#DC2626" />
+              <Text style={mds.rejectText}>Reject</Text>
+            </View>
           )}
         </TouchableOpacity>
         <TouchableOpacity
@@ -1832,7 +1856,10 @@ function QueueCard({
           {voting ? (
             <ActivityIndicator size="small" color="#16A34A" />
           ) : (
-            <Text style={mds.approveText}>✓  Approve</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Ionicons name="checkmark" size={15} color="#16A34A" />
+              <Text style={mds.approveText}>Approve</Text>
+            </View>
           )}
         </TouchableOpacity>
       </View>
@@ -1884,7 +1911,7 @@ function ModerationSection() {
         </View>
       ) : items.length === 0 ? (
         <View style={mds.stateCard}>
-          <Text style={mds.emptyIcon}>✓</Text>
+          <Ionicons name="checkmark-circle-outline" size={32} color={COLORS.success} />
           <Text style={mds.emptyTitle}>Queue is clear</Text>
           <Text style={mds.emptyBody}>No submissions pending review. Check back later.</Text>
         </View>
@@ -1965,7 +1992,6 @@ const mds = StyleSheet.create({
     borderColor: COLORS.border,
   },
   stateText: { color: COLORS.textSecondary, fontSize: 13 },
-  emptyIcon: { fontSize: 28, color: '#16A34A' },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   emptyBody: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 18 },
   list: { gap: 10 },
@@ -1995,7 +2021,7 @@ const mds = StyleSheet.create({
   spotName: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
   spotMeta: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  scorePill: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  scorePill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   scoreNum: { fontWeight: '800', fontSize: 13 },
   voteRow: { flexDirection: 'row', gap: 10 },
   voteBtn: {
@@ -2060,12 +2086,10 @@ function LandingView({ onStart }: { onStart: () => void }) {
             Help the community find parking — earn points toward Hawk tier
           </Text>
         </View>
-        <Text style={lv.heroArrow}>›</Text>
+        <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
       </TouchableOpacity>
 
       <ModerationSection />
-
-      <View style={{ height: 32 }} />
     </ScrollView>
   );
 }
