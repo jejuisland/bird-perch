@@ -1,51 +1,40 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private apiKey: string | null;
-  private fromEmail: string;
-  private fromName: string;
+  private transporter: nodemailer.Transporter | null = null;
+  private fromAddress: string;
 
   constructor() {
-    this.apiKey = process.env.BREVO_API_KEY ?? null;
-    const from = process.env.MAIL_FROM ?? 'Perch <onboarding@perch.app>';
-    const match = from.match(/^(.+?)\s*<(.+)>$/);
-    this.fromName = match ? match[1].trim() : 'Perch';
-    this.fromEmail = match ? match[2].trim() : from;
+    const user = process.env.GMAIL_USER;
+    const pass = process.env.GMAIL_APP_PASSWORD;
+    this.fromAddress = `Perch <${user ?? 'noreply@perchapp.com'}>`;
 
-    if (this.apiKey) {
-      this.logger.log(`Mail service ready — sending from ${this.fromEmail}`);
+    if (user && pass) {
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass },
+      });
+      this.logger.log(`Mail service ready — sending from ${this.fromAddress}`);
     } else {
-      this.logger.warn('BREVO_API_KEY not set — OTP codes will be logged to console only.');
+      this.logger.warn('GMAIL_USER / GMAIL_APP_PASSWORD not set — OTP codes will be logged to console only.');
     }
   }
 
   async sendOtp(email: string, code: string): Promise<void> {
-    if (!this.apiKey) {
+    if (!this.transporter) {
       this.printToConsole(email, code);
       return;
     }
 
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'api-key': this.apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sender: { name: this.fromName, email: this.fromEmail },
-        to: [{ email }],
-        subject: `${code} is your Perch verification code`,
-        htmlContent: this.buildTemplate(code),
-      }),
+    await this.transporter.sendMail({
+      from: this.fromAddress,
+      to: email,
+      subject: `${code} is your Perch verification code`,
+      html: this.buildTemplate(code),
     });
-
-    if (!res.ok) {
-      const body = await res.text();
-      this.logger.error(`Brevo send failed (${res.status}): ${body}`);
-      throw new Error('Failed to send OTP email');
-    }
 
     this.logger.log(`OTP sent to ${email}`);
   }
