@@ -14,10 +14,16 @@ export class MailService {
 
     if (user && pass) {
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: { user, pass },
       });
-      this.logger.log(`Mail service ready — sending from ${this.fromAddress}`);
+      this.transporter.verify().then(() => {
+        this.logger.log(`Mail service SMTP verified — sending from ${this.fromAddress}`);
+      }).catch((err: Error) => {
+        this.logger.error(`Mail service SMTP verify FAILED: ${err.message}`);
+      });
     } else {
       this.logger.warn('GMAIL_USER / GMAIL_APP_PASSWORD not set — OTP codes will be logged to console only.');
     }
@@ -29,14 +35,18 @@ export class MailService {
       return;
     }
 
-    await this.transporter.sendMail({
-      from: this.fromAddress,
-      to: email,
-      subject: `${code} is your Perch verification code`,
-      html: this.buildTemplate(code),
-    });
-
-    this.logger.log(`OTP sent to ${email}`);
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.fromAddress,
+        to: email,
+        subject: `${code} is your Perch verification code`,
+        html: this.buildTemplate(code),
+      });
+      this.logger.log(`OTP sent to ${email} — messageId=${info.messageId}`);
+    } catch (err: unknown) {
+      this.logger.error(`OTP send FAILED to ${email}: ${(err as Error).message}`);
+      throw err;
+    }
   }
 
   private buildTemplate(code: string): string {
