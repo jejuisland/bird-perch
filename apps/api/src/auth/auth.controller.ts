@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, Logger } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, Logger, UnauthorizedException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -36,5 +36,12 @@ export class AuthController {
   @HttpCode(200)
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto.email, dto.code);
+  }
+
+  @Post('refresh')
+  @HttpCode(200)
+  refresh(@Body() body: { refreshToken: string }) {
+    if (!body?.refreshToken) throw new UnauthorizedException('refreshToken is required');
+    return this.authService.refresh(body.refreshToken);
   }
 }

@@ -12,14 +12,60 @@ import type {
 
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
 
+let _isRefreshing = false;
+let _refreshQueue: Array<(token: string) => void> = [];
+
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
-    if (error.response?.status === 401) {
+    const original = error.config;
+    if (error.response?.status !== 401 || original._retry) {
+      return Promise.reject(error);
+    }
+
+    // Don't try to refresh if the failing request IS the refresh call
+    if (original.url?.includes('/auth/refresh')) {
       delete apiClient.defaults.headers.common['Authorization'];
       await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    if (_isRefreshing) {
+      return new Promise((resolve) => {
+        _refreshQueue.push((token) => {
+          original.headers['Authorization'] = `Bearer ${token}`;
+          resolve(apiClient(original));
+        });
+      });
+    }
+
+    original._retry = true;
+    _isRefreshing = true;
+
+    try {
+      const storedRefresh = await AsyncStorage.getItem('refreshToken');
+      if (!storedRefresh) throw new Error('no refresh token');
+
+      const { data } = await apiClient.post('/auth/refresh', { refreshToken: storedRefresh });
+      const newAccess: string = data.accessToken;
+      const newRefresh: string = data.refreshToken;
+
+      await AsyncStorage.setItem('accessToken', newAccess);
+      await AsyncStorage.setItem('refreshToken', newRefresh);
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${newAccess}`;
+
+      _refreshQueue.forEach((cb) => cb(newAccess));
+      _refreshQueue = [];
+
+      original.headers['Authorization'] = `Bearer ${newAccess}`;
+      return apiClient(original);
+    } catch {
+      delete apiClient.defaults.headers.common['Authorization'];
+      await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+      return Promise.reject(error);
+    } finally {
+      _isRefreshing = false;
+    }
   },
 );
 

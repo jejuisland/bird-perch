@@ -123,6 +123,24 @@ export class AuthService {
     return this.signTokens(user.id, user.email);
   }
 
+  // ─── Token Refresh ───────────────────────────────────────────────────────────
+
+  async refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+    let payload: { sub: string; email: string };
+    try {
+      payload = this.jwtService.verify(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET ?? 'dev_refresh_secret',
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token.');
+    }
+
+    const user = await this.usersService.findById(payload.sub);
+    if (!user) throw new UnauthorizedException();
+
+    return this.signTokens(user.id, user.email);
+  }
+
   // ─── Internals ────────────────────────────────────────────────────────────────
 
   private async _generateAndSendOtp(email: string) {
