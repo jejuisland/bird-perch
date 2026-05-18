@@ -25,6 +25,9 @@
     "onlyBuiltDependencies": ["@nestjs/core", "bcrypt", "@scarf/scarf"],
     "overrides": {
       "react-native-worklets": "0.5.1"
+    },
+    "patchedDependencies": {
+      "@expo/metro-runtime@4.0.1": "patches/@expo__metro-runtime@4.0.1.patch"
     }
   }
 }

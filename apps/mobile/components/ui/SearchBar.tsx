@@ -4,9 +4,9 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  Text,
   ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useMapStore } from '../../store/mapStore';
 import { COLORS } from '../../constants';
 
@@ -73,7 +73,7 @@ export default function SearchBar({ onLocationSelect, onClear }: Props) {
   return (
     <View style={styles.wrapper}>
       <View style={styles.bar}>
-        <Text style={styles.icon}>🔍</Text>
+        <Ionicons name="search-outline" size={18} color={COLORS.textSecondary} />
         <TextInput
           style={styles.input}
           placeholder="Search area, street or landmark..."
@@ -88,7 +88,7 @@ export default function SearchBar({ onLocationSelect, onClear }: Props) {
           <ActivityIndicator size="small" color={COLORS.primary} style={styles.loader} />
         ) : searchQuery.length > 0 ? (
           <TouchableOpacity onPress={handleClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.clear}>✕</Text>
+            <Ionicons name="close-outline" size={18} color={COLORS.textSecondary} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -102,7 +102,7 @@ export default function SearchBar({ onLocationSelect, onClear }: Props) {
               onPress={() => handleSelect(item)}
               activeOpacity={0.7}
             >
-              <Text style={styles.suggestionIcon}>📍</Text>
+              <Ionicons name="location-outline" size={15} color={COLORS.textSecondary} style={{ marginTop: 1 }} />
               <Text style={styles.suggestionText} numberOfLines={2}>
                 {item.display_name}
               </Text>
@@ -134,9 +134,7 @@ const styles = StyleSheet.create({
     elevation: 4,
     gap: 8,
   },
-  icon: { fontSize: 16 },
   input: { flex: 1, fontSize: 15, color: COLORS.text },
-  clear: { color: COLORS.textSecondary, fontSize: 14, paddingHorizontal: 4 },
   loader: { marginHorizontal: 2 },
   dropdown: {
     backgroundColor: COLORS.background,
@@ -160,6 +158,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-  suggestionIcon: { fontSize: 14, marginTop: 1 },
   suggestionText: { flex: 1, fontSize: 13, color: COLORS.text, lineHeight: 18 },
 });

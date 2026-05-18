@@ -1,13 +1,16 @@
 import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, Image, StyleSheet, Text } from 'react-native';
 import { COLORS } from '../../constants';
 
 interface Props {
   selected: boolean;
+  unverified?: boolean;
 }
 
-export default function ParkingMarker({ selected }: Props) {
+export default function ParkingMarker({ selected, unverified }: Props) {
   const size = selected ? 52 : 40;
+  const pinColor = unverified ? '#9CA3AF' : COLORS.primary;
+  const ringColor = selected ? (unverified ? 'rgba(156, 163, 175, 0.25)' : COLORS.primary + '35') : 'transparent';
 
   return (
     <View style={styles.wrapper}>
@@ -19,24 +22,35 @@ export default function ParkingMarker({ selected }: Props) {
             width: size + 10,
             height: size + 10,
             borderRadius: (size + 10) / 2,
-            backgroundColor: selected ? COLORS.primary + '35' : 'transparent',
+            backgroundColor: ringColor,
           },
         ]}
       >
+        {unverified ? (
+          <View style={styles.unverifiedBadge}>
+            <Text style={styles.unverifiedText}>Unverified</Text>
+          </View>
+        ) : null}
         <Image
           source={require('../../assets/logo.png')}
           style={{
             width: size,
             height: size,
             borderRadius: size / 2,
-            opacity: selected ? 1 : 0.85,
+            opacity: unverified ? 0.55 : selected ? 1 : 0.85,
           }}
           resizeMode="contain"
         />
       </View>
 
       {/* Pin stem */}
-      <View style={[styles.stem, selected && styles.stemSelected]} />
+      <View
+        style={[
+          styles.stem,
+          selected && styles.stemSelected,
+          { borderTopColor: pinColor },
+        ]}
+      />
     </View>
   );
 }
@@ -48,6 +62,21 @@ const styles = StyleSheet.create({
   ring: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  unverifiedBadge: {
+    position: 'absolute',
+    top: -18,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    zIndex: 2,
+  },
+  unverifiedText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   stem: {
     width: 0,

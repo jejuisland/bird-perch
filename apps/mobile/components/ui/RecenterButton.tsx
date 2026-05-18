@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 
 interface Props {
@@ -9,7 +10,7 @@ interface Props {
 export default function RecenterButton({ onPress }: Props) {
   return (
     <TouchableOpacity style={styles.btn} onPress={onPress} activeOpacity={0.8}>
-      <Text style={styles.icon}>◎</Text>
+      <Ionicons name="locate-outline" size={22} color={COLORS.primary} />
     </TouchableOpacity>
   );
 }
@@ -22,7 +23,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -33,5 +34,4 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  icon: { fontSize: 20, color: COLORS.primary },
 });

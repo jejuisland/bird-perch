@@ -28,16 +28,21 @@ export class ParkingSpotsService {
         ) <= :radius`,
         { lat: latitude, lng: longitude, radius: radiusKm },
       )
+      // Exclude community-submitted spots still pending moderation.
+      // NULL means admin/seeded — always show.
+      .andWhere('(spot.communityVerification = :verified OR spot.communityVerification IS NULL)', { verified: 'verified' })
+      // Use parameterized values in ORDER BY to avoid raw interpolation.
       .orderBy(
         `(
           6371 * acos(
-            cos(radians(${latitude})) * cos(radians(spot.latitude)) *
-            cos(radians(spot.longitude) - radians(${longitude})) +
-            sin(radians(${latitude})) * sin(radians(spot.latitude))
+            cos(radians(:lat)) * cos(radians(spot.latitude)) *
+            cos(radians(spot.longitude) - radians(:lng)) +
+            sin(radians(:lat)) * sin(radians(spot.latitude))
           )
         )`,
         'ASC',
       )
+      .setParameters({ lat: latitude, lng: longitude, radius: radiusKm })
       .limit(100)
       .getMany();
 
@@ -50,7 +55,8 @@ export class ParkingSpotsService {
   }
 
   async create(data: Partial<ParkingSpotEntity>): Promise<ParkingSpotEntity> {
-    const spot = this.repo.create(data);
+    // Admin-created spots bypass moderation and are always verified.
+    const spot = this.repo.create({ communityVerification: 'verified', ...data });
     return this.repo.save(spot);
   }
 

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, Logger } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -9,11 +9,15 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
   @HttpCode(200)
   register(@Body() dto: RegisterDto) {
+    this.logger.log(
+      `register request email=${dto.email} name=${dto.name} age=${dto.age} vehicleType=${dto.vehicleType} mobileProvided=${!!dto.mobileNumber} passwordProvided=${!!dto.password}`,
+    );
     return this.authService.register(dto);
   }
 

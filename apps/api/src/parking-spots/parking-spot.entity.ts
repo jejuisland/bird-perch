@@ -5,7 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ParkingType, ParkingStatus, DetailedRates } from '@perch/shared';
+import { ParkingType, ParkingStatus, DetailedRates, CommunityVerification } from '@perch/shared';
 
 @Entity('parking_spots')
 export class ParkingSpotEntity {
@@ -42,6 +42,16 @@ export class ParkingSpotEntity {
     default: 'unknown',
   })
   status: ParkingStatus;
+
+  @Column({
+    type: 'enum',
+    enum: ['unverified', 'verified'],
+    default: 'unverified',
+  })
+  communityVerification: CommunityVerification;
+
+  @Column({ type: 'uuid', nullable: true })
+  submittedByUserId: string | null;
 
   @Column({ nullable: true })
   address: string;

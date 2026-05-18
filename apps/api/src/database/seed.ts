@@ -26,6 +26,8 @@ const OPEN_LOT = ['CCTV', 'Security Guard'];
 
 // ─── Helper to build standard mall rate ──────────────────────────────────────
 
+const VERIFIED = { communityVerification: 'verified' as const };
+
 function mallRate(carFirst: number, carSucceeding: number, motoFirst?: number): DetailedRates {
   return {
     car: {
@@ -33,16 +35,22 @@ function mallRate(carFirst: number, carSucceeding: number, motoFirst?: number): 
       firstRate: carFirst,
       succeedingRate: carSucceeding,
       overnightCharge: 300,
-      overnightCutoff: '2:00AM–6:00AM',
+      overnightWindowStart: '02:00',
+      overnightWindowEnd: '06:00',
+      dailyMaxCap: 500,
     },
     motorcycle: {
       firstHours: 2,
       firstRate: motoFirst ?? 20,
       succeedingRate: 10,
       overnightCharge: 200,
-      overnightCutoff: '2:00AM–6:00AM',
+      overnightWindowStart: '02:00',
+      overnightWindowEnd: '06:00',
+      dailyMaxCap: 300,
     },
     lostTicketFee: 300,
+    timezone: 'Asia/Manila',
+    dataConfidence: 'medium',
   };
 }
 
@@ -94,8 +102,8 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
     totalSlots: 600,
     facilities: MALL_BASE,
     detailedRates: {
-      car: { firstHours: 2, firstRate: 40, succeedingRate: 20, overnightCharge: 300, overnightCutoff: '2:00AM–6:00AM' },
-      motorcycle: { flatRate: 20, flatRateWindow: 'All day' },
+      car: { firstHours: 2, firstRate: 40, succeedingRate: 20, overnightCharge: 300, overnightWindowStart: '02:00', overnightWindowEnd: '06:00', dailyMaxCap: 400 },
+      motorcycle: { flatRate: 20 },
       lostTicketFee: 300,
     },
     rules: STANDARD_RULES,
@@ -117,14 +125,18 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
         firstRate: 35,
         succeedingRate: 15,
         overnightCharge: 300,
-        overnightCutoff: '2:00AM–6:00AM',
+        overnightWindowStart: '02:00',
+        overnightWindowEnd: '06:00',
+        dailyMaxCap: 450,
       },
       motorcycle: {
         firstHours: 3,
         firstRate: 30,
         succeedingRate: 20,
         overnightCharge: 200,
-        overnightCutoff: '2:00AM–6:00AM',
+        overnightWindowStart: '02:00',
+        overnightWindowEnd: '06:00',
+        dailyMaxCap: 300,
       },
       lostTicketFee: 300,
     },
@@ -178,8 +190,8 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
     totalSlots: 350,
     facilities: MALL_PREMIUM,
     detailedRates: {
-      car: { firstHours: 2, firstRate: 50, succeedingRate: 25, overnightCharge: 300, overnightCutoff: '2:00AM–6:00AM' },
-      motorcycle: { firstHours: 2, firstRate: 20, succeedingRate: 10 },
+      car: { firstHours: 2, firstRate: 50, succeedingRate: 25, overnightCharge: 300, overnightWindowStart: '02:00', overnightWindowEnd: '06:00', dailyMaxCap: 500 },
+      motorcycle: { firstHours: 2, firstRate: 20, succeedingRate: 10, dailyMaxCap: 300 },
       lostTicketFee: 300,
     },
     rules: STANDARD_RULES,
@@ -207,13 +219,16 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
         firstRate: 50,
         succeedingRate: 20,
         overnightCharge: 300,
-        overnightCutoff: '2:00AM–6:00AM',
+        overnightWindowStart: '02:00',
+        overnightWindowEnd: '06:00',
+        dailyMaxCap: 500,
       },
       motorcycle: {
         freeMinutes: 30,
         firstHours: 2,
         firstRate: 20,
         succeedingRate: 10,
+        dailyMaxCap: 300,
       },
       lostTicketFee: 300,
     },
@@ -245,8 +260,8 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
     totalSlots: 700,
     facilities: [...MALL_PREMIUM, 'Valet Parking'],
     detailedRates: {
-      car: { firstHours: 2, firstRate: 50, succeedingRate: 25, overnightCharge: 300, overnightCutoff: '2:00AM–6:00AM' },
-      motorcycle: { firstHours: 2, firstRate: 20, succeedingRate: 10 },
+      car: { firstHours: 2, firstRate: 50, succeedingRate: 25, overnightCharge: 300, overnightWindowStart: '02:00', overnightWindowEnd: '06:00', dailyMaxCap: 500 },
+      motorcycle: { firstHours: 2, firstRate: 20, succeedingRate: 10, dailyMaxCap: 300 },
       lostTicketFee: 500,
     },
     rules: STANDARD_RULES,
@@ -310,8 +325,8 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
     totalSlots: 500,
     facilities: [...MALL_PREMIUM, 'Valet Parking'],
     detailedRates: {
-      car: { firstHours: 2, firstRate: 60, succeedingRate: 25, overnightCharge: 300, overnightCutoff: '2:00AM–6:00AM' },
-      motorcycle: { firstHours: 2, firstRate: 25, succeedingRate: 15 },
+      car: { firstHours: 2, firstRate: 60, succeedingRate: 25, overnightCharge: 300, overnightWindowStart: '02:00', overnightWindowEnd: '06:00', dailyMaxCap: 600 },
+      motorcycle: { firstHours: 2, firstRate: 25, succeedingRate: 15, dailyMaxCap: 350 },
       lostTicketFee: 500,
     },
     rules: STANDARD_RULES,
@@ -328,8 +343,8 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
     totalSlots: 800,
     facilities: [...MALL_BASE, 'Valet Parking'],
     detailedRates: {
-      car: { freeMinutes: 30, firstHours: 2, firstRate: 50, succeedingRate: 20, overnightCharge: 300, overnightCutoff: '2:00AM–6:00AM' },
-      motorcycle: { firstHours: 2, firstRate: 20, succeedingRate: 10 },
+      car: { freeMinutes: 30, firstHours: 2, firstRate: 50, succeedingRate: 20, overnightCharge: 300, overnightWindowStart: '02:00', overnightWindowEnd: '06:00', dailyMaxCap: 500 },
+      motorcycle: { firstHours: 2, firstRate: 20, succeedingRate: 10, dailyMaxCap: 300 },
       lostTicketFee: 300,
     },
     rules: STANDARD_RULES,
@@ -432,7 +447,9 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
         firstRate: 60,
         succeedingRate: 30,
         overnightCharge: 300,
-        overnightCutoff: '1:30AM–6:00AM',
+        overnightWindowStart: '01:30',
+        overnightWindowEnd: '06:00',
+        dailyMaxCap: 600,
       },
       motorcycle: {
         freeMinutes: 15,
@@ -440,7 +457,9 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
         firstRate: 25,
         succeedingRate: 15,
         overnightCharge: 200,
-        overnightCutoff: '1:30AM–6:00AM',
+        overnightWindowStart: '01:30',
+        overnightWindowEnd: '06:00',
+        dailyMaxCap: 350,
       },
       lostTicketFee: 500,
     },
@@ -460,6 +479,7 @@ const seedSpots: Partial<ParkingSpotEntity>[] = [
     rates: '₱50 first 2h · ₱20/hr after',
     operatingHours: '10:00 AM – 10:00 PM',
     status: 'usually_available',
+    communityVerification: 'verified',
     totalSlots: 800,
     facilities: MALL_BASE,
     detailedRates: mallRate(50, 20),
@@ -476,12 +496,13 @@ async function seed() {
   const repo = AppDataSource.getRepository(ParkingSpotEntity);
 
   for (const spot of seedSpots) {
+    const data = { ...VERIFIED, ...spot };
     const existing = await repo.findOne({ where: { name: spot.name } });
     if (existing) {
-      await repo.save({ ...existing, ...spot });
+      await repo.save({ ...existing, ...data });
       console.log(`Updated: ${spot.name}`);
     } else {
-      await repo.save(repo.create(spot));
+      await repo.save(repo.create(data));
       console.log(`Seeded: ${spot.name}`);
     }
   }

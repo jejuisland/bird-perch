@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useMapStore } from '../../store/mapStore';
+import { COLORS } from '../../constants';
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -54,7 +56,10 @@ export default function MyCarPanel({ userLocation }: Props) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.title}>🚗  My Car</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="car-outline" size={16} color={COLORS.text} />
+          <Text style={styles.title}>My Car</Text>
+        </View>
         <Text style={styles.time}>Parked at {formatParkedAt(parkedLocation.timestamp)}</Text>
       </View>
 
@@ -82,11 +87,11 @@ const styles = StyleSheet.create({
     bottom: 68,
     left: 12,
     right: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
     borderRadius: 16,
     padding: 14,
     borderLeftWidth: 4,
-    borderLeftColor: '#F97316',
+    borderLeftColor: COLORS.warning,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -99,25 +104,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  title: { fontWeight: '700', fontSize: 15, color: '#111827' },
-  time: { fontSize: 12, color: '#6B7280' },
-  distance: { fontSize: 13, color: '#374151', marginBottom: 10 },
+  title: { fontWeight: '700', fontSize: 15, color: COLORS.text },
+  time: { fontSize: 12, color: COLORS.textSecondary },
+  distance: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 10 },
   actions: { flexDirection: 'row', gap: 8 },
   navBtn: {
     flex: 1,
-    backgroundColor: '#2563EB',
+    backgroundColor: COLORS.primary,
     borderRadius: 10,
     paddingVertical: 9,
     alignItems: 'center',
   },
-  navBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  navBtnText: { color: COLORS.textInverse, fontWeight: '600', fontSize: 13 },
   clearBtn: {
     flex: 1,
     borderWidth: 1.5,
-    borderColor: '#EF4444',
+    borderColor: COLORS.danger,
     borderRadius: 10,
     paddingVertical: 9,
     alignItems: 'center',
   },
-  clearBtnText: { color: '#EF4444', fontWeight: '600', fontSize: 13 },
+  clearBtnText: { color: COLORS.danger, fontWeight: '600', fontSize: 13 },
 });

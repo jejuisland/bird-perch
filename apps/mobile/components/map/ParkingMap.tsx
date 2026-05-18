@@ -241,6 +241,7 @@ const ParkingMap = forwardRef<MapView, Props>(
 
         {filteredSpots.map((spot) => {
           const isSelected = selectedSpot?.id === spot.id;
+          const isUnverified = spot.communityVerification === 'unverified';
           return (
             <Marker
               key={`${spot.id}_${isSelected ? 's' : 'd'}`}
@@ -249,7 +250,7 @@ const ParkingMap = forwardRef<MapView, Props>(
               tracksViewChanges={false}
               anchor={{ x: 0.5, y: 1 }}
             >
-              <ParkingMarker selected={isSelected} />
+              <ParkingMarker selected={isSelected} unverified={isUnverified} />
             </Marker>
           );
         })}

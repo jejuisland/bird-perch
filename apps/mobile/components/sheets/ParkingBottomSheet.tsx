@@ -1,11 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, ActivityIndicator, Alert, Linking, Platform, Share,
+  TextInput, ActivityIndicator, Alert, Linking, Platform, Share, Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { ParkingSpot, VehicleRate } from '@perch/shared';
-import { reviewsApi } from '../../services/api';
+import {
+  ParkingSpot, VehicleRate,
+  calculateParkingFee, availableVehicleTypes, PricingVehicleType, FeeBreakdown,
+} from '@perch/shared';
+import { favoritesApi, reviewsApi } from '../../services/api';
 import { COLORS } from '../../constants';
 
 interface Props {
@@ -40,30 +44,32 @@ function formatMinutes(min: number) {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-function getHighlights(spot: ParkingSpot): { icon: string; label: string }[] {
-  const tags: { icon: string; label: string }[] = [];
-  if (spot.type === 'mall') tags.push({ icon: '🏢', label: 'Covered' });
-  if (spot.type === 'private_lot') tags.push({ icon: '🔒', label: 'Secured' });
-  if (spot.type === 'street') tags.push({ icon: '🛣️', label: 'Open Air' });
-  if ((spot.operatingHours ?? '').toLowerCase().includes('24')) tags.push({ icon: '🕐', label: '24 Hours' });
-  if (spot.status === 'usually_available') tags.push({ icon: '✅', label: 'Often Free' });
-  if (spot.status === 'usually_busy') tags.push({ icon: '🔴', label: 'Often Full' });
-  if (Number(spot.averageRating ?? 0) >= 4.5) tags.push({ icon: '⭐', label: 'Top Rated' });
-  if (spot.reviewCount >= 5) tags.push({ icon: '💬', label: 'Popular' });
-  if (spot.totalSlots && spot.totalSlots >= 1000) tags.push({ icon: '🅿️', label: 'Large Lot' });
+function getHighlights(spot: ParkingSpot): { icon: IoniconsName; color?: string; label: string }[] {
+  const tags: { icon: IoniconsName; color?: string; label: string }[] = [];
+  if (spot.type === 'mall') tags.push({ icon: 'business-outline', label: 'Covered' });
+  if (spot.type === 'private_lot') tags.push({ icon: 'lock-closed-outline', label: 'Secured' });
+  if (spot.type === 'street') tags.push({ icon: 'partly-sunny-outline', label: 'Open Air' });
+  if ((spot.operatingHours ?? '').toLowerCase().includes('24')) tags.push({ icon: 'time-outline', label: '24 Hours' });
+  if (spot.status === 'usually_available') tags.push({ icon: 'checkmark-circle-outline', color: COLORS.success, label: 'Often Free' });
+  if (spot.status === 'usually_busy') tags.push({ icon: 'close-circle-outline', color: COLORS.danger, label: 'Often Full' });
+  if (Number(spot.averageRating ?? 0) >= 4.5) tags.push({ icon: 'star-outline', color: COLORS.star, label: 'Top Rated' });
+  if (spot.reviewCount >= 5) tags.push({ icon: 'chatbubble-outline', label: 'Popular' });
+  if (spot.totalSlots && spot.totalSlots >= 1000) tags.push({ icon: 'car-outline', label: 'Large Lot' });
   return tags;
 }
 
-const FACILITY_ICONS: Record<string, string> = {
-  'CCTV': '📹',
-  'Security Guard': '👮',
-  'Covered': '🏠',
-  'EV Charging': '⚡',
-  'Accessible Parking': '♿',
-  'Car Wash': '🚿',
-  'Gated': '🔒',
-  'Valet Parking': '🎫',
-  '24/7 Attendant': '🧑‍💼',
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+const FACILITY_ICONS: Record<string, IoniconsName> = {
+  'CCTV':                'videocam-outline',
+  'Security Guard':      'shield-outline',
+  'Covered':             'home-outline',
+  'EV Charging':         'flash-outline',
+  'Accessible Parking':  'accessibility-outline',
+  'Car Wash':            'water-outline',
+  'Gated':               'lock-closed-outline',
+  'Valet Parking':       'ticket-outline',
+  '24/7 Attendant':      'person-outline',
 };
 
 const TYPE_LABEL: Record<string, string> = { street: 'Street', mall: 'Mall', private_lot: 'Private' };
@@ -90,7 +96,11 @@ function StarRating({ rating, size = 16, onRate }: { rating: number; size?: numb
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1, 2, 3, 4, 5].map((s) => (
         <TouchableOpacity key={s} onPress={() => onRate?.(s)} disabled={!onRate} activeOpacity={0.7}>
-          <Text style={{ fontSize: size, color: s <= rating ? COLORS.star : COLORS.border }}>★</Text>
+          <Ionicons
+            name={s <= rating ? 'star' : 'star-outline'}
+            size={size}
+            color={s <= rating ? COLORS.star : COLORS.border}
+          />
         </TouchableOpacity>
       ))}
     </View>
@@ -104,7 +114,7 @@ function RouteCard({ distance }: { distance: number }) {
     <View style={routeStyles.card}>
       <View style={routeStyles.row}>
         <View style={routeStyles.item}>
-          <Text style={routeStyles.icon}>🚶</Text>
+          <Ionicons name="walk-outline" size={22} color={COLORS.textSecondary} />
           <View>
             <Text style={routeStyles.value}>{formatMinutes(walkMin)}</Text>
             <Text style={routeStyles.label}>Walking</Text>
@@ -112,7 +122,7 @@ function RouteCard({ distance }: { distance: number }) {
         </View>
         <View style={routeStyles.divider} />
         <View style={routeStyles.item}>
-          <Text style={routeStyles.icon}>🚗</Text>
+          <Ionicons name="car-outline" size={22} color={COLORS.textSecondary} />
           <View>
             <Text style={routeStyles.value}>{formatMinutes(driveMin)}</Text>
             <Text style={routeStyles.label}>By car</Text>
@@ -120,7 +130,7 @@ function RouteCard({ distance }: { distance: number }) {
         </View>
         <View style={routeStyles.divider} />
         <View style={routeStyles.item}>
-          <Text style={routeStyles.icon}>📍</Text>
+          <Ionicons name="location-outline" size={22} color={COLORS.textSecondary} />
           <View>
             <Text style={routeStyles.value}>{formatDistance(distance)}</Text>
             <Text style={routeStyles.label}>Distance</Text>
@@ -132,11 +142,11 @@ function RouteCard({ distance }: { distance: number }) {
   );
 }
 
-function VehicleRateRow({ icon, label, rate }: { icon: string; label: string; rate: VehicleRate }) {
+function VehicleRateRow({ icon, label, rate }: { icon: IoniconsName; label: string; rate: VehicleRate }) {
   return (
     <View style={rateStyles.vehicleBlock}>
       <View style={rateStyles.vehicleHeader}>
-        <Text style={rateStyles.vehicleIcon}>{icon}</Text>
+        <Ionicons name={icon} size={18} color={COLORS.textSecondary} />
         <Text style={rateStyles.vehicleLabel}>{label}</Text>
       </View>
       {rate.freeMinutes ? (
@@ -165,7 +175,10 @@ function VehicleRateRow({ icon, label, rate }: { icon: string; label: string; ra
       ) : null}
       {rate.overnightCharge ? (
         <View style={[rateStyles.rateRow, rateStyles.overnightRow]}>
-          <Text style={rateStyles.overnightLabel}>🌙 Overnight {rate.overnightCutoff ?? ''}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+            <Ionicons name="moon-outline" size={12} color={COLORS.textSecondary} />
+            <Text style={rateStyles.overnightLabel}>Overnight {rate.overnightCutoff ?? ''}</Text>
+          </View>
           <Text style={rateStyles.overnightValue}>+{peso(rate.overnightCharge)}</Text>
         </View>
       ) : null}
@@ -182,27 +195,30 @@ function DetailedRatesSection({ spot }: { spot: ParkingSpot }) {
     <View style={rateStyles.container}>
       <TouchableOpacity style={rateStyles.header} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
         <Text style={rateStyles.headerTitle}>Parking Rates</Text>
-        <Text style={rateStyles.chevron}>{expanded ? '▲' : '▼'}</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
       </TouchableOpacity>
 
       {expanded && (
         <View style={rateStyles.body}>
-          {dr.car && <VehicleRateRow icon="🚗" label="Four-Wheeler / Car" rate={dr.car} />}
+          {dr.car && <VehicleRateRow icon="car-outline" label="Four-Wheeler / Car" rate={dr.car} />}
           {dr.motorcycle && (
             <>
               {dr.car && <View style={rateStyles.vehicleDivider} />}
-              <VehicleRateRow icon="🏍️" label="Motorcycle" rate={dr.motorcycle} />
+              <VehicleRateRow icon="bicycle-outline" label="Motorcycle" rate={dr.motorcycle} />
             </>
           )}
           {dr.van && (
             <>
               <View style={rateStyles.vehicleDivider} />
-              <VehicleRateRow icon="🚐" label="Van / AUV" rate={dr.van} />
+              <VehicleRateRow icon="bus-outline" label="Van / AUV" rate={dr.van} />
             </>
           )}
           {dr.lostTicketFee ? (
             <View style={rateStyles.lostTicketRow}>
-              <Text style={rateStyles.lostTicketLabel}>⚠️  Lost ticket fee</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                <Ionicons name="warning-outline" size={13} color={COLORS.warning} />
+                <Text style={rateStyles.lostTicketLabel}>Lost ticket fee</Text>
+              </View>
               <Text style={rateStyles.lostTicketValue}>{peso(dr.lostTicketFee)}</Text>
             </View>
           ) : null}
@@ -218,10 +234,10 @@ function CarParkConditions({ rules }: { rules: string[] }) {
     <View style={condStyles.container}>
       <TouchableOpacity style={condStyles.header} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
         <View style={condStyles.headerLeft}>
-          <Text style={condStyles.headerIcon}>📋</Text>
+          <Ionicons name="document-text-outline" size={15} color={COLORS.textSecondary} />
           <Text style={condStyles.headerTitle}>Car Park Conditions</Text>
         </View>
-        <Text style={condStyles.chevron}>{expanded ? '▲' : '▼'}</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
       </TouchableOpacity>
       {expanded && (
         <View style={condStyles.body}>
@@ -245,7 +261,7 @@ function FacilitiesRow({ facilities }: { facilities: string[] }) {
       <View style={styles.facilitiesRow}>
         {facilities.map((f) => (
           <View key={f} style={styles.facilityChip}>
-            <Text style={styles.facilityIcon}>{FACILITY_ICONS[f] ?? '•'}</Text>
+            <Ionicons name={FACILITY_ICONS[f] ?? 'ellipse-outline'} size={13} color={COLORS.textSecondary} />
             <Text style={styles.facilityLabel}>{f}</Text>
           </View>
         ))}
@@ -260,7 +276,7 @@ function InlineAd() {
       <Text style={adStyles.sectionHeader}>Check out before parking</Text>
       <TouchableOpacity style={adStyles.card} activeOpacity={0.9}>
         <View style={adStyles.imageBg}>
-          <Text style={adStyles.imageEmoji}>🚗✨</Text>
+          <Ionicons name="car" size={40} color="rgba(255,255,255,0.7)" />
           <Text style={adStyles.imageCopy}>Get your car washed{'\n'}while you're parked!</Text>
         </View>
         <View style={adStyles.footer}>
@@ -275,6 +291,340 @@ function InlineAd() {
   );
 }
 
+// ─── Cost Calculator ─────────────────────────────────────────────────────────
+
+const DURATION_CHIPS = [60, 120, 180, 240] as const;
+const VEHICLE_OPTIONS: { type: PricingVehicleType; icon: IoniconsName; label: string }[] = [
+  { type: 'car',        icon: 'car-outline',     label: 'Car'   },
+  { type: 'motorcycle', icon: 'bicycle-outline',  label: 'Moto'  },
+  { type: 'van',        icon: 'bus-outline',      label: 'Van'   },
+  { type: 'truck',      icon: 'construct-outline', label: 'Truck' },
+];
+
+function formatHHMM(date: Date) {
+  const h = date.getHours();
+  const m = date.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+function formatDuration(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (m === 0) return `${h}h`;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+const CONFIDENCE_META: Record<string, { color: string; bg: string; label: string }> = {
+  high: { color: '#16A34A', bg: '#F0FDF4', label: 'Verified rates' },
+  medium: { color: COLORS.primary, bg: '#EFF6FF', label: 'Community rates' },
+  low: { color: '#D97706', bg: '#FFFBEB', label: 'Unverified rates' },
+  none: { color: '#6B7280', bg: '#F3F4F6', label: 'No structured rates' },
+};
+
+function TimePickerModal({
+  visible,
+  value,
+  onConfirm,
+  onClose,
+}: {
+  visible: boolean;
+  value: Date;
+  onConfirm: (d: Date) => void;
+  onClose: () => void;
+}) {
+  const [h, setH] = useState(value.getHours());
+  const [m, setM] = useState(Math.round(value.getMinutes() / 15) * 15 % 60);
+
+  useEffect(() => {
+    if (visible) {
+      setH(value.getHours());
+      setM(Math.round(value.getMinutes() / 15) * 15 % 60);
+    }
+  }, [visible, value]);
+
+  const adjustH = (delta: number) => setH((prev) => (prev + delta + 24) % 24);
+  const adjustM = (delta: number) => setM((prev) => (prev + delta + 60) % 60);
+
+  const formatted12 = () => {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hh = h % 12 === 0 ? 12 : h % 12;
+    return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`;
+  };
+
+  const confirm = () => {
+    const d = new Date(value);
+    d.setHours(h, m, 0, 0);
+    onConfirm(d);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={calcStyles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={calcStyles.modalCard}>
+          <Text style={calcStyles.modalTitle}>Select Arrival Time</Text>
+          <View style={calcStyles.pickerRow}>
+            <View style={calcStyles.pickerCol}>
+              <TouchableOpacity onPress={() => adjustH(1)} style={calcStyles.pickerBtn}>
+                <Ionicons name="chevron-up" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              <Text style={calcStyles.pickerValue}>{(h % 12 === 0 ? 12 : h % 12).toString().padStart(2, '0')}</Text>
+              <TouchableOpacity onPress={() => adjustH(-1)} style={calcStyles.pickerBtn}>
+                <Ionicons name="chevron-down" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={calcStyles.pickerColon}>:</Text>
+            <View style={calcStyles.pickerCol}>
+              <TouchableOpacity onPress={() => adjustM(15)} style={calcStyles.pickerBtn}>
+                <Ionicons name="chevron-up" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              <Text style={calcStyles.pickerValue}>{m.toString().padStart(2, '0')}</Text>
+              <TouchableOpacity onPress={() => adjustM(-15)} style={calcStyles.pickerBtn}>
+                <Ionicons name="chevron-down" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={calcStyles.pickerCol}>
+              <TouchableOpacity onPress={() => setH((prev) => (prev + 12) % 24)} style={[calcStyles.pickerBtn, { paddingVertical: 8 }]}>
+                <Text style={[calcStyles.pickerValue, { fontSize: 18 }]}>{h >= 12 ? 'PM' : 'AM'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <Text style={calcStyles.pickerPreview}>{formatted12()}</Text>
+          <TouchableOpacity style={calcStyles.modalConfirmBtn} onPress={confirm} activeOpacity={0.85}>
+            <Text style={calcStyles.modalConfirmText}>Set Time</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+function CostCalculatorSection({ spot }: { spot: ParkingSpot }) {
+  const dr = spot.detailedRates;
+  const [open, setOpen] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [vehicleType, setVehicleType] = useState<PricingVehicleType>('car');
+  const [arrivalTime, setArrivalTime] = useState(() => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    d.setMinutes(Math.round(d.getMinutes() / 15) * 15);
+    return d;
+  });
+  const [durationMinutes, setDurationMinutes] = useState(120);
+  const [customMinutes, setCustomMinutes] = useState('');
+  const [customActive, setCustomActive] = useState(false);
+
+  const availableTypes = useMemo(() => (dr ? availableVehicleTypes(dr) : []), [dr]);
+
+  useEffect(() => {
+    if (availableTypes.length > 0 && !availableTypes.includes(vehicleType)) {
+      setVehicleType(availableTypes[0]);
+    }
+  }, [availableTypes]);
+
+  const effectiveDuration = customActive
+    ? Math.max(1, parseInt(customMinutes || '0', 10))
+    : durationMinutes;
+
+  const breakdown: FeeBreakdown | null = useMemo(() => {
+    if (!dr) return null;
+    const rates = dr[vehicleType];
+    if (!rates) {
+      const fallback = dr.car ?? dr.motorcycle ?? dr.van ?? dr.truck;
+      if (!fallback) return null;
+      const result = calculateParkingFee({
+        arrivalTime,
+        exitTime: new Date(arrivalTime.getTime() + effectiveDuration * 60_000),
+        vehicleType,
+        rates: fallback,
+        detailedRates: dr,
+      });
+      result.warnings.unshift(`No ${vehicleType} rate — using ${dr.car ? 'car' : 'available'} rate`);
+      return result;
+    }
+    return calculateParkingFee({
+      arrivalTime,
+      exitTime: new Date(arrivalTime.getTime() + effectiveDuration * 60_000),
+      vehicleType,
+      rates,
+      detailedRates: dr,
+    });
+  }, [dr, vehicleType, arrivalTime, effectiveDuration]);
+
+  const confidence = breakdown?.confidence ?? 'none';
+  const meta = CONFIDENCE_META[confidence] ?? CONFIDENCE_META.none;
+
+  if (!dr) {
+    return (
+      <View style={calcStyles.noRatesCard}>
+        <Text style={calcStyles.noRatesText}>
+          💡 No structured rates — see rates summary below for pricing info.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={calcStyles.container}>
+      <TouchableOpacity style={calcStyles.header} onPress={() => setOpen((v) => !v)} activeOpacity={0.7}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="calculator-outline" size={15} color={COLORS.text} />
+          <Text style={calcStyles.headerTitle}>Calculate My Cost</Text>
+        </View>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
+      </TouchableOpacity>
+
+      {open && (
+        <View style={calcStyles.body}>
+          {/* Vehicle selector */}
+          <Text style={calcStyles.inputLabel}>VEHICLE</Text>
+          <View style={calcStyles.vehicleTabs}>
+            {VEHICLE_OPTIONS.filter((v) => availableTypes.includes(v.type)).map((v) => (
+              <TouchableOpacity
+                key={v.type}
+                style={[calcStyles.vehicleTab, vehicleType === v.type && calcStyles.vehicleTabActive]}
+                onPress={() => setVehicleType(v.type)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={v.icon} size={16} color={vehicleType === v.type ? COLORS.primary : COLORS.textSecondary} />
+                <Text style={[calcStyles.vehicleTabLabel, vehicleType === v.type && calcStyles.vehicleTabLabelActive]}>
+                  {v.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Arrival time */}
+          <Text style={[calcStyles.inputLabel, { marginTop: 14 }]}>ARRIVAL TIME</Text>
+          <View style={calcStyles.arrivalRow}>
+            <TouchableOpacity
+              style={calcStyles.timeAdjBtn}
+              onPress={() => setArrivalTime((d) => new Date(d.getTime() - 30 * 60_000))}
+              activeOpacity={0.7}
+            >
+              <Text style={calcStyles.timeAdjText}>−30m</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={calcStyles.timeDisplay} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
+              <Text style={calcStyles.timeDisplayText}>{formatHHMM(arrivalTime)}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={calcStyles.timeAdjBtn}
+              onPress={() => setArrivalTime((d) => new Date(d.getTime() + 30 * 60_000))}
+              activeOpacity={0.7}
+            >
+              <Text style={calcStyles.timeAdjText}>+30m</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Duration chips */}
+          <Text style={[calcStyles.inputLabel, { marginTop: 14 }]}>STAY DURATION</Text>
+          <View style={calcStyles.durationRow}>
+            {DURATION_CHIPS.map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[calcStyles.durationChip, !customActive && durationMinutes === d && calcStyles.durationChipActive]}
+                onPress={() => { setDurationMinutes(d); setCustomActive(false); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[calcStyles.durationChipText, !customActive && durationMinutes === d && calcStyles.durationChipTextActive]}>
+                  {formatDuration(d)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[calcStyles.durationChip, customActive && calcStyles.durationChipActive]}
+              onPress={() => setCustomActive(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[calcStyles.durationChipText, customActive && calcStyles.durationChipTextActive]}>Custom</Text>
+            </TouchableOpacity>
+          </View>
+          {customActive && (
+            <View style={calcStyles.customRow}>
+              <TextInput
+                style={calcStyles.customInput}
+                placeholder="Hours (e.g. 5)"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="numeric"
+                value={customMinutes}
+                onChangeText={(v) => setCustomMinutes(v.replace(/[^0-9.]/g, ''))}
+              />
+              <Text style={calcStyles.customUnit}>hours</Text>
+              <TouchableOpacity
+                style={calcStyles.customSetBtn}
+                onPress={() => {
+                  const hrs = parseFloat(customMinutes || '0');
+                  setDurationMinutes(Math.round(hrs * 60));
+                  setCustomActive(false);
+                  setCustomMinutes('');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={calcStyles.customSetText}>Set</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Breakdown */}
+          {breakdown && (
+            <View style={calcStyles.breakdownCard}>
+              <View style={calcStyles.breakdownDivider} />
+              {breakdown.lineItems.map((item, i) => (
+                <View key={i} style={calcStyles.lineItemRow}>
+                  <Text style={calcStyles.lineItemLabel}>{item.label}</Text>
+                  <Text style={[calcStyles.lineItemAmount, item.isFree && calcStyles.lineItemFree]}>
+                    {item.isFree ? 'FREE' : item.amount < 0 ? `−₱${Math.abs(item.amount).toLocaleString()}` : `₱${item.amount.toLocaleString()}`}
+                  </Text>
+                </View>
+              ))}
+              <View style={calcStyles.totalRow}>
+                <View style={calcStyles.breakdownDivider} />
+                {breakdown.cap !== undefined && (
+                  <View style={calcStyles.capRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                      <Ionicons name="lock-closed-outline" size={12} color={COLORS.textSecondary} />
+                      <Text style={calcStyles.capLabel}>Daily max cap applied</Text>
+                    </View>
+                    <Text style={calcStyles.capValue}>₱{breakdown.cap.toLocaleString()}</Text>
+                  </View>
+                )}
+                <View style={calcStyles.totalAmountRow}>
+                  <Text style={calcStyles.totalLabel}>ESTIMATED TOTAL</Text>
+                  <Text style={calcStyles.totalAmount}>₱{breakdown.total.toLocaleString()}</Text>
+                </View>
+                <Text style={calcStyles.exitNote}>
+                  Exit by {formatHHMM(new Date(arrivalTime.getTime() + effectiveDuration * 60_000))}
+                </Text>
+              </View>
+              {breakdown.warnings.map((w, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="warning-outline" size={13} color={COLORS.warning} />
+                  <Text style={calcStyles.warning}>{w}</Text>
+                </View>
+              ))}
+              <View style={[calcStyles.confidenceBadge, { backgroundColor: meta.bg }]}>
+                <Text style={[calcStyles.confidenceText, { color: meta.color }]}>
+                  {meta.label} · {confidence === 'high' ? 'Verified' : confidence === 'medium' ? 'Moderate confidence' : 'Use as rough estimate'}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      )}
+
+      <TimePickerModal
+        visible={showTimePicker}
+        value={arrivalTime}
+        onConfirm={setArrivalTime}
+        onClose={() => setShowTimePicker(false)}
+      />
+    </View>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ParkingBottomSheet({ spot, userLocation, onClose }: Props) {
@@ -285,6 +635,8 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
   const [newRating, setNewRating] = useState(0);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (spot) {
@@ -296,6 +648,24 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
     } else {
       sheetRef.current?.close();
     }
+  }, [spot?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!spot) {
+      setIsSaved(false);
+      return;
+    }
+    favoritesApi
+      .list()
+      .then((spots) => {
+        if (cancelled) return;
+        setIsSaved(spots.some((s) => s.id === spot.id));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [spot?.id]);
 
   const distance = useMemo(() => {
@@ -324,11 +694,11 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
     Share.share({
       title: spot.name,
       message:
-        `🅿️ ${spot.name}${dist}\n` +
-        `📍 ${spot.address || TYPE_LABEL[spot.type]}\n` +
-        `💰 ${spot.rates || 'Rate not listed'}\n` +
-        `⏰ ${spot.operatingHours || 'Hours not listed'}\n` +
-        `⭐ ${Number(spot.averageRating ?? 0) > 0 ? Number(spot.averageRating).toFixed(1) : 'No ratings'}/5\n\n` +
+        `${spot.name}${dist}\n` +
+        `${spot.address || TYPE_LABEL[spot.type]}\n` +
+        `Rates: ${spot.rates || 'Not listed'}\n` +
+        `Hours: ${spot.operatingHours || 'Not listed'}\n` +
+        `Rating: ${Number(spot.averageRating ?? 0) > 0 ? Number(spot.averageRating).toFixed(1) : 'No ratings'}/5\n\n` +
         `Shared via Perch`,
     });
   }, [spot, distance]);
@@ -368,6 +738,11 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               <View style={styles.typeChip}>
                 <Text style={styles.typeChipText}>{TYPE_LABEL[spot.type]}</Text>
               </View>
+              {spot.communityVerification === 'unverified' ? (
+                <View style={styles.unverifiedChip}>
+                  <Text style={styles.unverifiedChipText}>Unverified</Text>
+                </View>
+              ) : null}
               <View style={[styles.statusChip, { backgroundColor: STATUS_COLOR[spot.status] + '1A' }]}>
                 <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[spot.status] }]} />
                 <Text style={[styles.statusChipText, { color: STATUS_COLOR[spot.status] }]}>
@@ -376,7 +751,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               </View>
               {spot.totalSlots ? (
                 <View style={styles.slotsChip}>
-                  <Text style={styles.slotsText}>🅿️ {spot.totalSlots.toLocaleString()} slots</Text>
+                  <Text style={styles.slotsText}>{spot.totalSlots.toLocaleString()} slots</Text>
                 </View>
               ) : null}
             </View>
@@ -394,12 +769,34 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
             {/* ── Actions ── */}
             <View style={styles.actions}>
               <TouchableOpacity style={styles.navigateBtn} onPress={handleNavigate} activeOpacity={0.85}>
-                <Text style={styles.btnIcon}>🗺️</Text>
+                <Ionicons name="navigate-outline" size={15} color={COLORS.textInverse} />
                 <Text style={styles.navigateBtnText}>Navigate</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
-                <Text style={styles.shareBtnIcon}>⬆</Text>
+                <Ionicons name="share-outline" size={15} color={COLORS.primary} />
                 <Text style={styles.shareBtnText}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={async () => {
+                  if (!spot || saving) return;
+                  setSaving(true);
+                  try {
+                    if (isSaved) {
+                      await favoritesApi.remove(spot.id);
+                      setIsSaved(false);
+                    } else {
+                      await favoritesApi.add(spot.id);
+                      setIsSaved(true);
+                    }
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name={isSaved ? 'heart' : 'heart-outline'} size={15} color={isSaved ? COLORS.danger : COLORS.textSecondary} />
+                <Text style={styles.saveBtnText}>{isSaved ? 'Saved' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
 
@@ -416,7 +813,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               >
                 {highlights.map((h, i) => (
                   <View key={i} style={styles.highlightChip}>
-                    <Text style={styles.highlightIcon}>{h.icon}</Text>
+                    <Ionicons name={h.icon} size={12} color={h.color ?? COLORS.textSecondary} />
                     <Text style={styles.highlightLabel}>{h.label}</Text>
                   </View>
                 ))}
@@ -431,12 +828,15 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
             {/* ── Detailed Rates ── */}
             {spot.detailedRates && <DetailedRatesSection spot={spot} />}
 
+            {/* ── Cost Calculator ── */}
+            <CostCalculatorSection spot={spot} />
+
             {/* ── Info Card ── */}
             <View style={styles.detailsCard}>
               {spot.address ? (
                 <>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailEmoji}>📍</Text>
+                    <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} style={styles.detailIcon} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.detailLabel}>ADDRESS</Text>
                       <Text style={styles.detailValue}>{spot.address}</Text>
@@ -446,7 +846,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
                 </>
               ) : null}
               <View style={styles.detailRow}>
-                <Text style={styles.detailEmoji}>💰</Text>
+                <Ionicons name="cash-outline" size={16} color={COLORS.textSecondary} style={styles.detailIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.detailLabel}>RATES SUMMARY</Text>
                   <Text style={styles.detailValue}>{spot.rates || 'Not specified'}</Text>
@@ -454,7 +854,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               </View>
               <View style={styles.detailDivider} />
               <View style={styles.detailRow}>
-                <Text style={styles.detailEmoji}>🕐</Text>
+                <Ionicons name="time-outline" size={16} color={COLORS.textSecondary} style={styles.detailIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.detailLabel}>OPERATING HOURS</Text>
                   <Text style={styles.detailValue}>{spot.operatingHours || 'Not specified'}</Text>
@@ -468,7 +868,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
                     onPress={() => Linking.openURL(`tel:${spot.contactNumber}`)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.detailEmoji}>📞</Text>
+                    <Ionicons name="call-outline" size={16} color={COLORS.textSecondary} style={styles.detailIcon} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.detailLabel}>CONTACT</Text>
                       <Text style={[styles.detailValue, { color: COLORS.primary }]}>{spot.contactNumber}</Text>
@@ -574,6 +974,17 @@ const styles = StyleSheet.create({
   statusChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusChipText: { fontSize: 12, fontWeight: '600' },
+  unverifiedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  unverifiedChipText: { fontSize: 12, fontWeight: '700', color: '#374151' },
   slotsChip: { backgroundColor: COLORS.surface, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   slotsText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
 
@@ -585,14 +996,25 @@ const styles = StyleSheet.create({
     flex: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 14, gap: 8,
   },
-  btnIcon: { fontSize: 18 },
-  navigateBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  navigateBtnText: { color: COLORS.textInverse, fontWeight: '700', fontSize: 15 },
   shareBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 14, paddingVertical: 14, gap: 6,
   },
-  shareBtnIcon: { fontSize: 16, color: COLORS.text, fontWeight: '700' },
   shareBtnText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
+  saveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 6,
+    backgroundColor: COLORS.background,
+  },
+  saveBtnText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
 
   highlightsScroll: { marginBottom: 16 },
   highlightsContent: { gap: 8 },
@@ -601,7 +1023,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface, borderRadius: 20,
     paddingHorizontal: 14, paddingVertical: 9,
   },
-  highlightIcon: { fontSize: 15 },
   highlightLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
 
   facilitiesContainer: { marginBottom: 20 },
@@ -613,12 +1034,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
     borderWidth: 1, borderColor: COLORS.border,
   },
-  facilityIcon: { fontSize: 14 },
   facilityLabel: { fontSize: 12, fontWeight: '600', color: COLORS.text },
 
   detailsCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, marginBottom: 16 },
   detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  detailEmoji: { fontSize: 20, marginTop: 2 },
+  detailIcon: { marginTop: 2 },
   detailLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 0.8, marginBottom: 3 },
   detailValue: { fontSize: 14, color: COLORS.text, fontWeight: '500', lineHeight: 20 },
   detailDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 12 },
@@ -688,12 +1108,11 @@ const rateStyles = StyleSheet.create({
     paddingVertical: 14,
   },
   headerTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  chevron: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700' },
+
   body: { paddingHorizontal: 16, paddingVertical: 12 },
 
   vehicleBlock: { paddingVertical: 4 },
   vehicleHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  vehicleIcon: { fontSize: 18 },
   vehicleLabel: { fontSize: 14, fontWeight: '700', color: COLORS.text },
 
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
@@ -706,7 +1125,7 @@ const rateStyles = StyleSheet.create({
     paddingHorizontal: 10,
     marginTop: 4,
   },
-  overnightLabel: { fontSize: 12, color: '#92400E', flex: 1 },
+  overnightLabel: { fontSize: 12, color: COLORS.warningText, flex: 1 },
   overnightValue: { fontSize: 12, fontWeight: '700', color: '#DC2626' },
 
   vehicleDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 10 },
@@ -743,13 +1162,128 @@ const condStyles = StyleSheet.create({
     paddingVertical: 14,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerIcon: { fontSize: 16 },
-  headerTitle: { fontSize: 15, fontWeight: '700', color: '#78350F' },
-  chevron: { fontSize: 12, color: '#92400E', fontWeight: '700' },
+  headerTitle: { fontSize: 15, fontWeight: '700', color: COLORS.warningText },
   body: { paddingHorizontal: 16, paddingVertical: 12 },
   ruleRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   ruleNumber: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary, minWidth: 18 },
   ruleText: { fontSize: 13, color: COLORS.text, lineHeight: 20, flex: 1 },
+});
+
+// ─── Cost calculator styles ───────────────────────────────────────────────────
+
+const calcStyles = StyleSheet.create({
+  container: {
+    borderRadius: 16, borderWidth: 1, borderColor: COLORS.border,
+    marginBottom: 16, overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4', paddingHorizontal: 16, paddingVertical: 14,
+  },
+  headerTitle: { fontSize: 15, fontWeight: '700', color: COLORS.success },
+  body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16 },
+
+  inputLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 0.8, marginBottom: 8 },
+
+  vehicleTabs: { flexDirection: 'row', gap: 8 },
+  vehicleTab: {
+    flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12,
+    borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface,
+  },
+  vehicleTabActive: { borderColor: COLORS.primary, backgroundColor: '#EFF6FF' },
+  vehicleTabGap: { marginBottom: 2 },
+  vehicleTabLabel: { fontSize: 11, fontWeight: '600', color: COLORS.textSecondary },
+  vehicleTabLabelActive: { color: COLORS.primary },
+
+  arrivalRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timeAdjBtn: {
+    paddingHorizontal: 14, paddingVertical: 11, borderRadius: 10,
+    backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+  },
+  timeAdjText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  timeDisplay: {
+    flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 10,
+    backgroundColor: COLORS.primary + '15', borderWidth: 1.5, borderColor: COLORS.primary,
+  },
+  timeDisplayText: { fontSize: 16, fontWeight: '800', color: COLORS.primary },
+
+  durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  durationChip: {
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20,
+    backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border,
+  },
+  durationChipActive: { borderColor: COLORS.primary, backgroundColor: '#EFF6FF' },
+  durationChipText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  durationChipTextActive: { color: COLORS.primary },
+
+  customRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  customInput: {
+    flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: COLORS.text,
+    backgroundColor: COLORS.surface,
+  },
+  customUnit: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500' },
+  customSetBtn: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: COLORS.primary,
+  },
+  customSetText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  breakdownCard: { marginTop: 14 },
+  breakdownDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 10 },
+  lineItemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  lineItemLabel: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
+  lineItemAmount: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  lineItemFree: { color: '#16A34A' },
+
+  totalRow: { marginTop: 2 },
+  capRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#FFF7ED', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 6,
+  },
+  capLabel: { fontSize: 12, color: '#92400E' },
+  capValue: { fontSize: 12, fontWeight: '700', color: '#92400E' },
+  totalAmountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  totalLabel: { fontSize: 13, fontWeight: '800', color: COLORS.text, letterSpacing: 0.4 },
+  totalAmount: { fontSize: 22, fontWeight: '900', color: COLORS.primary },
+  exitNote: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'right', marginTop: 2, marginBottom: 8 },
+
+  warning: { fontSize: 12, color: '#D97706', marginBottom: 6, lineHeight: 17 },
+  confidenceBadge: {
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginTop: 4,
+  },
+  confidenceText: { fontSize: 12, fontWeight: '600' },
+
+  noRatesCard: {
+    backgroundColor: COLORS.surface, borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: 16,
+  },
+  noRatesText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 19 },
+
+  // Time picker modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalCard: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 24,
+    width: 280, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15, shadowRadius: 20, elevation: 20,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '800', color: COLORS.text, marginBottom: 20 },
+  pickerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  pickerCol: { alignItems: 'center', minWidth: 56 },
+  pickerBtn: { padding: 10 },
+
+  pickerValue: { fontSize: 32, fontWeight: '900', color: COLORS.text, minWidth: 52, textAlign: 'center' },
+  pickerColon: { fontSize: 32, fontWeight: '900', color: COLORS.text, marginBottom: 4 },
+  pickerPreview: { fontSize: 15, color: COLORS.textSecondary, marginBottom: 20 },
+  modalConfirmBtn: {
+    backgroundColor: COLORS.primary, borderRadius: 12,
+    paddingHorizontal: 32, paddingVertical: 13, width: '100%', alignItems: 'center',
+  },
+  modalConfirmText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });
 
 // ─── Inline ad styles ─────────────────────────────────────────────────────────
@@ -769,7 +1303,7 @@ const adStyles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
-  imageEmoji: { fontSize: 32 },
+
   imageCopy: { fontSize: 13, color: '#BFDBFE', textAlign: 'center', lineHeight: 18 },
   footer: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
   adTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
