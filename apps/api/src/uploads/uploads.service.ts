@@ -5,24 +5,25 @@ import * as ws from 'ws';
 
 @Injectable()
 export class UploadsService {
-  private client: SupabaseClient;
+  private _client: SupabaseClient | null = null;
   private bucket: string;
 
   constructor() {
+    this.bucket = process.env.SUPABASE_STORAGE_BUCKET || 'parking-photos';
+  }
+
+  private get client(): SupabaseClient {
+    if (this._client) return this._client;
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'parking-photos';
-
     if (!url || !key) {
-      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
+      throw new InternalServerErrorException('Photo uploads are not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing)');
     }
-
-    this.client = createClient(url, key, {
+    this._client = createClient(url, key, {
       auth: { persistSession: false },
-      // ws is CJS; without esModuleInterop, prefer module import + pick constructor
       realtime: { transport: ((ws as any).WebSocket ?? (ws as any)) as any },
     });
-    this.bucket = bucket;
+    return this._client;
   }
 
   async createSignedParkingPhotoUpload(args: {

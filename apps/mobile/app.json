@@ -42,6 +42,12 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Perch uses your location to find nearby parking and build an anonymized heatmap."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Perch needs access to your photos to upload parking spot images."
+        }
       ]
     ],
     "experiments": {
