@@ -1,61 +1,93 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter | null = null;
-  private fromAddress: string;
+  private readonly configured: boolean;
 
   constructor() {
-    const user = process.env.GMAIL_USER;
-    const clientId = process.env.GMAIL_CLIENT_ID;
-    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
-    this.fromAddress = `Perch <${user ?? 'noreply@perchapp.com'}>`;
-
-    if (user && clientId && clientSecret && refreshToken) {
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        family: 4,
-        auth: {
-          type: 'OAuth2',
-          user,
-          clientId,
-          clientSecret,
-          refreshToken,
-        },
-      });
-      this.transporter.verify().then(() => {
-        this.logger.log(`Mail service OAuth2 verified — sending from ${this.fromAddress}`);
-      }).catch((err: Error) => {
-        this.logger.error(`Mail service OAuth2 verify FAILED: ${err.message}`);
-      });
+    this.configured = !!(
+      process.env.GMAIL_USER &&
+      process.env.GMAIL_CLIENT_ID &&
+      process.env.GMAIL_CLIENT_SECRET &&
+      process.env.GMAIL_REFRESH_TOKEN
+    );
+    if (this.configured) {
+      this.logger.log(`Mail service ready (Gmail API) — sending from Perch <${process.env.GMAIL_USER}>`);
     } else {
-      this.logger.warn('Gmail OAuth2 env vars not configured — OTP codes will be logged to console only.');
+      this.logger.warn('Gmail OAuth2 env vars not set — OTP codes will be logged to console only.');
     }
   }
 
   async sendOtp(email: string, code: string): Promise<void> {
-    if (!this.transporter) {
+    if (!this.configured) {
       this.printToConsole(email, code);
       return;
     }
 
     try {
-      const info = await this.transporter.sendMail({
-        from: this.fromAddress,
-        to: email,
-        subject: `${code} is your Perch verification code`,
-        html: this.buildTemplate(code),
+      const accessToken = await this.getAccessToken();
+      const raw = this.buildRaw(
+        email,
+        `${code} is your Perch verification code`,
+        this.buildTemplate(code),
+        `Perch <${process.env.GMAIL_USER}>`,
+      );
+
+      const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ raw }),
       });
-      this.logger.log(`OTP sent to ${email} — messageId=${info.messageId}`);
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Gmail API ${res.status}: ${body}`);
+      }
+
+      const result = await res.json() as { id: string };
+      this.logger.log(`OTP sent to ${email} — gmailId=${result.id}`);
     } catch (err: unknown) {
       this.logger.error(`OTP send FAILED to ${email}: ${(err as Error).message}`);
       throw err;
     }
+  }
+
+  private async getAccessToken(): Promise<string> {
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GMAIL_CLIENT_ID!,
+        client_secret: process.env.GMAIL_CLIENT_SECRET!,
+        refresh_token: process.env.GMAIL_REFRESH_TOKEN!,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`OAuth2 token refresh failed: ${body}`);
+    }
+
+    const data = await res.json() as { access_token: string };
+    return data.access_token;
+  }
+
+  private buildRaw(to: string, subject: string, html: string, from: string): string {
+    const msg = [
+      `From: ${from}`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      html,
+    ].join('\r\n');
+    return Buffer.from(msg).toString('base64url');
   }
 
   private buildTemplate(code: string): string {
