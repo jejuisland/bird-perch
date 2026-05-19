@@ -9,23 +9,29 @@ export class MailService {
 
   constructor() {
     const user = process.env.GMAIL_USER;
-    const pass = process.env.GMAIL_APP_PASSWORD;
+    const clientId = process.env.GMAIL_CLIENT_ID;
+    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
     this.fromAddress = `Perch <${user ?? 'noreply@perchapp.com'}>`;
 
-    if (user && pass) {
+    if (user && clientId && clientSecret && refreshToken) {
       this.transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: { user, pass },
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user,
+          clientId,
+          clientSecret,
+          refreshToken,
+        },
       });
       this.transporter.verify().then(() => {
-        this.logger.log(`Mail service SMTP verified — sending from ${this.fromAddress}`);
+        this.logger.log(`Mail service OAuth2 verified — sending from ${this.fromAddress}`);
       }).catch((err: Error) => {
-        this.logger.error(`Mail service SMTP verify FAILED: ${err.message}`);
+        this.logger.error(`Mail service OAuth2 verify FAILED: ${err.message}`);
       });
     } else {
-      this.logger.warn('GMAIL_USER / GMAIL_APP_PASSWORD not set — OTP codes will be logged to console only.');
+      this.logger.warn('Gmail OAuth2 env vars not configured — OTP codes will be logged to console only.');
     }
   }
 
