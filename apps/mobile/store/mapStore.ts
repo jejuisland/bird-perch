@@ -12,6 +12,7 @@ export interface ParkedLocation {
 
 interface MapState {
   selectedSpot: ParkingSpot | null;
+  pendingFocusSpot: ParkingSpot | null;
   heatmapEnabled: boolean;
   heatmapPoints: HeatmapPoint[];
   parkingSpots: ParkingSpot[];
@@ -21,6 +22,7 @@ interface MapState {
   radiusMeters: number;
 
   setSelectedSpot: (spot: ParkingSpot | null) => void;
+  setPendingFocusSpot: (spot: ParkingSpot | null) => void;
   toggleHeatmap: () => void;
   setHeatmapPoints: (points: HeatmapPoint[]) => void;
   setParkingSpots: (spots: ParkingSpot[]) => void;
@@ -34,6 +36,7 @@ interface MapState {
 
 export const useMapStore = create<MapState>((set) => ({
   selectedSpot: null,
+  pendingFocusSpot: null,
   heatmapEnabled: true,
   heatmapPoints: [],
   parkingSpots: [],
@@ -43,6 +46,7 @@ export const useMapStore = create<MapState>((set) => ({
   radiusMeters: 3000,
 
   setSelectedSpot: (spot) => set({ selectedSpot: spot }),
+  setPendingFocusSpot: (spot) => set({ pendingFocusSpot: spot }),
   toggleHeatmap: () => set((s) => ({ heatmapEnabled: !s.heatmapEnabled })),
   setHeatmapPoints: (points) => set({ heatmapPoints: points }),
   setParkingSpots: (spots) => set({ parkingSpots: spots }),

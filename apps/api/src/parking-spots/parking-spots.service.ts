@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ParkingSpotEntity } from './parking-spot.entity';
+import { ParkingSpotPhotoEntity } from '../community/entities/parking-spot-photo.entity';
 import { NearbyQueryDto } from './dto/nearby-query.dto';
 
 @Injectable()
@@ -9,6 +10,8 @@ export class ParkingSpotsService {
   constructor(
     @InjectRepository(ParkingSpotEntity)
     private readonly repo: Repository<ParkingSpotEntity>,
+    @InjectRepository(ParkingSpotPhotoEntity)
+    private readonly photosRepo: Repository<ParkingSpotPhotoEntity>,
   ) {}
 
   // Uses Haversine formula via raw SQL — no PostGIS required for MVP.
@@ -58,6 +61,15 @@ export class ParkingSpotsService {
     // Admin-created spots bypass moderation and are always verified.
     const spot = this.repo.create({ communityVerification: 'verified', ...data });
     return this.repo.save(spot);
+  }
+
+  async findPhotos(spotId: string): Promise<Pick<ParkingSpotPhotoEntity, 'id' | 'publicUrl' | 'createdAt'>[]> {
+    const photos = await this.photosRepo.find({
+      where: { parkingSpotId: spotId, hiddenAt: null },
+      order: { createdAt: 'ASC' },
+      select: ['id', 'publicUrl', 'createdAt'],
+    });
+    return photos;
   }
 
   async updateRatingStats(id: string, newAvg: number, newCount: number) {

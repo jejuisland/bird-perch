@@ -102,6 +102,8 @@ export const parkingApi = {
       .get('/parking-spots', { params: { latitude: lat, longitude: lng, radiusMeters, openNow } })
       .then((r) => r.data),
   getById: (id: string) => apiClient.get(`/parking-spots/${id}`).then((r) => r.data),
+  getPhotos: (spotId: string) =>
+    apiClient.get(`/parking-spots/${spotId}/photos`).then((r) => r.data as { id: string; publicUrl: string }[]),
 };
 
 export const uploadsApi = {
@@ -128,6 +130,8 @@ export const moderationApi = {
       .then((r) => r.data as ModerationQueuePage),
   vote: (itemId: string, approve: boolean) =>
     apiClient.post(`/moderation/items/${itemId}/vote`, { approve }).then((r) => r.data),
+  mySubmissions: () =>
+    apiClient.get('/moderation/my-submissions').then((r) => r.data as ModerationQueueItem[]),
 };
 
 export const favoritesApi = {
