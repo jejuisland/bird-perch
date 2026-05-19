@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 
@@ -8,6 +8,7 @@ interface Props {
   distanceM: number;
   durationSec: number;
   isRerouting: boolean;
+  onCancel?: () => void;
 }
 
 function formatDistance(m: number): string {
@@ -23,7 +24,7 @@ function formatDuration(sec: number): string {
   return rem > 0 ? `~${h}h ${rem}m` : `~${h}h`;
 }
 
-export default function NavigationBanner({ spotName, distanceM, durationSec, isRerouting }: Props) {
+export default function NavigationBanner({ spotName, distanceM, durationSec, isRerouting, onCancel }: Props) {
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -61,6 +62,12 @@ export default function NavigationBanner({ spotName, distanceM, durationSec, isR
       <View style={styles.badge}>
         <Text style={styles.badgeText}>{formatDistance(distanceM)}</Text>
       </View>
+
+      {onCancel && (
+        <TouchableOpacity onPress={onCancel} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.cancelBtn}>
+          <Ionicons name="close" size={18} color={COLORS.textInverse} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -100,4 +107,13 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   badgeText: { fontSize: 12, fontWeight: '700', color: COLORS.textInverse },
+  cancelBtn: {
+    marginLeft: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

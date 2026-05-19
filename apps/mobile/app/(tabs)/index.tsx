@@ -1,6 +1,8 @@
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import ParkingMap, { RouteInfo } from '../../components/map/ParkingMap';
 import ParkingBottomSheet from '../../components/sheets/ParkingBottomSheet';
 import SearchBar from '../../components/ui/SearchBar';
@@ -21,11 +23,21 @@ type SearchedLocation = { latitude: number; longitude: number; label: string };
 export default function MapScreen() {
   const { coords } = useLocation();
   const { selectedSpot, setSelectedSpot, loadParkedCar, parkedLocation, pendingFocusSpot, setPendingFocusSpot } = useMapStore();
+  const queryClient = useQueryClient();
   const mapRef = useRef<any>(null);
   const [mapCenter, setMapCenter] = useState(coords);
   const [searchedLocation, setSearchedLocation] = useState<SearchedLocation | null>(null);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [isRerouting, setIsRerouting] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+
+  // Refetch parking spots whenever the map tab comes into focus so newly
+  // approved community spots appear without needing to move the map.
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['parking-spots'] });
+    }, [queryClient]),
+  );
 
   useEffect(() => {
     loadParkedCar();
@@ -86,7 +98,7 @@ export default function MapScreen() {
         onRegionChangeComplete={(region) =>
           setMapCenter({ latitude: region.latitude, longitude: region.longitude })
         }
-        onMarkerPress={(spot) => setSelectedSpot(spot)}
+        onMarkerPress={(spot) => { setSelectedSpot(spot); setIsSheetOpen(true); }}
         onRouteUpdate={(info) => setRouteInfo(info)}
         onReroutingChange={(v) => setIsRerouting(v)}
       />
@@ -115,6 +127,7 @@ export default function MapScreen() {
             distanceM={routeInfo.distanceM}
             durationSec={routeInfo.durationSec}
             isRerouting={isRerouting}
+            onCancel={() => { setSelectedSpot(null); setRouteInfo(null); setIsSheetOpen(false); }}
           />
         ) : (
           <View style={styles.filterRow} pointerEvents="box-none">
@@ -134,9 +147,9 @@ export default function MapScreen() {
       </SafeAreaView>
 
       <ParkingBottomSheet
-        spot={selectedSpot}
+        spot={isSheetOpen ? selectedSpot : null}
         userLocation={coords}
-        onClose={() => { setSelectedSpot(null); setRouteInfo(null); }}
+        onClose={() => setIsSheetOpen(false)}
       />
     </View>
   );
