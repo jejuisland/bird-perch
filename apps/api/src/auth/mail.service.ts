@@ -16,7 +16,10 @@ export class MailService {
 
     if (user && clientId && clientSecret && refreshToken) {
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        family: 4,
         auth: {
           type: 'OAuth2',
           user,
