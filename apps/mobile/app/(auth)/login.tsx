@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { COLORS } from '../../constants';
 import PerchLogo from '../../components/ui/PerchLogo';
+import AuthScreenWrapper from '../../components/ui/AuthScreenWrapper';
 
 type LoginMode = 'otp' | 'password';
 
@@ -19,6 +19,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<LoginMode>('otp');
   const [loading, setLoading] = useState(false);
+
+  const passwordRef = useRef<TextInput>(null);
 
   const handleOtp = async () => {
     const trimmed = email.trim().toLowerCase();
@@ -52,9 +54,8 @@ export default function LoginScreen() {
   const canSubmitPassword = email.trim().includes('@') && password.length >= 8;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
-
+    <AuthScreenWrapper>
+      <View style={styles.centeredContent}>
         <View style={styles.logoArea}>
           <PerchLogo showTagline />
         </View>
@@ -62,11 +63,10 @@ export default function LoginScreen() {
         <Text style={styles.title}>Sign In</Text>
         <Text style={styles.subtitle}>
           {mode === 'otp'
-            ? 'Enter your email and we\'ll send a one-time code.'
+            ? "Enter your email and we'll send a one-time code."
             : 'Sign in with your email and password.'}
         </Text>
 
-        {/* Mode toggle */}
         <View style={styles.modeRow}>
           <TouchableOpacity
             style={[styles.modeBtn, mode === 'otp' && styles.modeBtnActive]}
@@ -96,12 +96,13 @@ export default function LoginScreen() {
             returnKeyType={mode === 'otp' ? 'send' : 'next'}
             value={email}
             onChangeText={setEmail}
-            onSubmitEditing={mode === 'otp' ? handleOtp : undefined}
+            onSubmitEditing={mode === 'otp' ? handleOtp : () => passwordRef.current?.focus()}
             autoFocus
           />
 
           {mode === 'password' && (
             <TextInput
+              ref={passwordRef}
               style={styles.input}
               placeholder="Password (min 8 characters)"
               placeholderTextColor={COLORS.textSecondary}
@@ -134,15 +135,13 @@ export default function LoginScreen() {
             <Text style={styles.footerLink}>Register</Text>
           </TouchableOpacity>
         </View>
-
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </AuthScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, justifyContent: 'center', padding: 28 },
+  centeredContent: { flex: 1, justifyContent: 'center' },
   logoArea: { alignItems: 'center', marginBottom: 32 },
 
   modeRow: {

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
-  Alert, KeyboardAvoidingView, Platform,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { COLORS } from '../../constants';
+import AuthScreenWrapper from '../../components/ui/AuthScreenWrapper';
 
 function formatSeconds(s: number) {
   const m = Math.floor(s / 60).toString().padStart(2, '0');
@@ -44,10 +44,8 @@ export default function VerifyOtpScreen() {
       const { isNewUser } = await verifyOtp(email!, code.trim());
 
       if (mode === 'register') {
-        // Registration complete — profile is already filled, go straight to app
         router.replace('/(tabs)');
       } else {
-        // Login OTP — go to tabs; AuthGuard will redirect to register if profile incomplete
         if (isNewUser) {
           router.replace('/(auth)/register');
         } else {
@@ -82,8 +80,8 @@ export default function VerifyOtpScreen() {
   const isRegistration = mode === 'register';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
+    <AuthScreenWrapper>
+      <View style={styles.centeredContent}>
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
@@ -144,15 +142,14 @@ export default function VerifyOtpScreen() {
               : 'Resend Code'}
           </Text>
         </TouchableOpacity>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </AuthScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, padding: 28, justifyContent: 'center' },
-  back: { position: 'absolute', top: 16, left: 28 },
+  centeredContent: { flex: 1, justifyContent: 'center' },
+  back: { alignSelf: 'flex-start', marginBottom: 24 },
   backText: { color: COLORS.primary, fontSize: 15, fontWeight: '600' },
   title: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 32 },
