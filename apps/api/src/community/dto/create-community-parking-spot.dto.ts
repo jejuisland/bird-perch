@@ -27,6 +27,10 @@ export class CreateCommunityParkingSpotDto {
   @IsString()
   operatingHours?: string;
 
+  @IsOptional()
+  @IsString()
+  landmark?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   photoStoragePaths: string[];

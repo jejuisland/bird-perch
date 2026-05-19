@@ -144,6 +144,7 @@ export class CommunitySubmissionsService {
             rates: resolvedRates ?? null,
             detailedRates: resolvedDetailedRates ?? null,
             operatingHours: dto.operatingHours ?? null,
+            landmark: dto.landmark ?? null,
           },
           photoStoragePaths: dto.photoStoragePaths,
         },

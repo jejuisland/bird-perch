@@ -50,6 +50,17 @@ type PhotoItem = {
 
 // ─── Utilities ─────────────────────────────────────────────────────────────────
 
+function to24h(time12: string): string {
+  const match = time12.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return time12;
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const period = match[3].toUpperCase();
+  if (period === 'PM' && hours !== 12) hours += 12;
+  if (period === 'AM' && hours === 12) hours = 0;
+  return `${String(hours).padStart(2, '0')}:${minutes}`;
+}
+
 function haversineMeters(a: Coord, b: Coord): number {
   const R = 6371000;
   const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
@@ -2605,7 +2616,7 @@ export default function ContributeScreen() {
     const t = setTimeout(async () => {
       setCheckingNearby(true);
       try {
-        const spots = await parkingApi.getNearby(pinCoord.latitude, pinCoord.longitude, 60);
+        const spots = await parkingApi.getNearby(pinCoord.latitude, pinCoord.longitude, 150);
         setNearbySpots(Array.isArray(spots) ? spots : []);
       } catch {
         setNearbySpots([]);
@@ -2739,8 +2750,9 @@ export default function ContributeScreen() {
         rates: isPaid && hourlyRate ? `₱${hourlyRate}/hr` : isPaid ? 'Paid' : 'Free',
         detailedRates: detailedRates ?? undefined,
         operatingHours: is24Hours
-          ? '24 hours'
-          : `${openTime.trim()}–${closeTime.trim()}`,
+          ? '24h'
+          : `${to24h(openTime.trim())}-${to24h(closeTime.trim())}`,
+        landmark: landmark.trim() || undefined,
         photoStoragePaths: storagePaths,
         submissionLatitude: coords.latitude,
         submissionLongitude: coords.longitude,
