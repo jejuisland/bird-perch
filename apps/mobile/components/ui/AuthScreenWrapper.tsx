@@ -3,10 +3,10 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleProp,
   StyleSheet,
+  View,
   ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,18 +22,19 @@ export default function AuthScreenWrapper({ children, contentContainerStyle }: P
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
         style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[styles.content, contentContainerStyle]}
           keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={Keyboard.dismiss}
           bounces={false}
           showsVerticalScrollIndicator={false}
         >
-          <Pressable style={styles.pressable} onPress={Keyboard.dismiss}>
+          <View style={styles.inner}>
             {children}
-          </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -45,5 +46,5 @@ const styles = StyleSheet.create({
   kav: { flex: 1 },
   scroll: { flex: 1 },
   content: { flexGrow: 1, padding: 28, paddingBottom: 48 },
-  pressable: { flex: 1 },
+  inner: { flex: 1 },
 });
