@@ -96,12 +96,30 @@ export const authApi = {
     }),
 };
 
+const toNumber = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
+
+/**
+ * Postgres `decimal`/`numeric` columns (latitude, longitude, averageRating) are
+ * serialized as strings by the `pg` driver. The `ParkingSpot` type declares them
+ * as numbers, and react-native-maps' Android marker rejects a string coordinate
+ * ("Value for latitude cannot be cast from String to double"), so coerce here.
+ */
+function normalizeSpot(s: any): ParkingSpot {
+  return {
+    ...s,
+    latitude: toNumber(s.latitude),
+    longitude: toNumber(s.longitude),
+    averageRating: s.averageRating == null ? 0 : toNumber(s.averageRating),
+    totalSlots: s.totalSlots == null ? undefined : toNumber(s.totalSlots),
+  };
+}
+
 export const parkingApi = {
   getNearby: (lat: number, lng: number, radiusMeters = 5000, openNow?: boolean) =>
     apiClient
       .get('/parking-spots', { params: { latitude: lat, longitude: lng, radiusMeters, openNow } })
-      .then((r) => r.data),
-  getById: (id: string) => apiClient.get(`/parking-spots/${id}`).then((r) => r.data),
+      .then((r) => (Array.isArray(r.data) ? r.data.map(normalizeSpot) : [])),
+  getById: (id: string) => apiClient.get(`/parking-spots/${id}`).then((r) => normalizeSpot(r.data)),
   getPhotos: (spotId: string) =>
     apiClient.get(`/parking-spots/${spotId}/photos`).then((r) => r.data as { id: string; publicUrl: string }[]),
 };
@@ -135,7 +153,10 @@ export const moderationApi = {
 };
 
 export const favoritesApi = {
-  list: () => apiClient.get('/users/me/favorites').then((r) => r.data as ParkingSpot[]),
+  list: () =>
+    apiClient
+      .get('/users/me/favorites')
+      .then((r) => (Array.isArray(r.data) ? r.data.map(normalizeSpot) : [])),
   add: (spotId: string) => apiClient.post(`/users/me/favorites/${spotId}`).then((r) => r.data),
   remove: (spotId: string) => apiClient.delete(`/users/me/favorites/${spotId}`).then((r) => r.data),
 };
@@ -155,7 +176,15 @@ export const heatmapApi = {
   getAggregated: (lat: number, lng: number, radiusMeters = 5000) =>
     apiClient
       .get('/heatmap', { params: { latitude: lat, longitude: lng, radiusMeters } })
-      .then((r) => r.data),
+      .then((r) =>
+        Array.isArray(r.data)
+          ? r.data.map((p: any) => ({
+              latitude: toNumber(p.latitude),
+              longitude: toNumber(p.longitude),
+              weight: toNumber(p.weight),
+            }))
+          : [],
+      ),
   collect: (data: { latitude: number; longitude: number; sessionId: string; dwellSeconds?: number }) =>
     apiClient.post('/heatmap/collect', data),
 };

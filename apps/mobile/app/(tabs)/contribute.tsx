@@ -18,10 +18,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { COLORS, OSM_TILE_URL } from '../../constants';
+import { COLORS, GRADIENTS, SHADOWS, OSM_TILE_URL } from '../../constants';
 import { useLocation } from '../../hooks/useLocation';
 import {
   communityParkingApi,
@@ -232,15 +233,28 @@ function ActionBar({
         <View style={{ flex: 0, width: 44 }} />
       )}
       <TouchableOpacity
-        style={[ab.next, nextDisabled && ab.nextDisabled]}
+        style={[ab.nextWrap, !nextDisabled && SHADOWS.primaryGlow]}
         onPress={onNext}
         disabled={nextDisabled || loading}
         activeOpacity={0.85}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" size="small" />
+        {nextDisabled ? (
+          <View style={[ab.next, ab.nextDisabled]}>
+            <Text style={ab.nextText}>{nextLabel}</Text>
+          </View>
         ) : (
-          <Text style={ab.nextText}>{nextLabel}</Text>
+          <LinearGradient
+            colors={GRADIENTS.primaryButton}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={ab.next}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textInverse} size="small" />
+            ) : (
+              <Text style={ab.nextText}>{nextLabel}</Text>
+            )}
+          </LinearGradient>
         )}
       </TouchableOpacity>
     </View>
@@ -261,20 +275,15 @@ const ab = StyleSheet.create({
   },
   back: { paddingHorizontal: 14, paddingVertical: 12 },
   backText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 15 },
+  nextWrap: { flex: 1, borderRadius: 12 },
   next: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 4,
+    justifyContent: 'center',
   },
-  nextDisabled: { backgroundColor: COLORS.border, shadowOpacity: 0, elevation: 0 },
-  nextText: { color: '#fff', fontWeight: '700', fontSize: 15, letterSpacing: 0.2 },
+  nextDisabled: { backgroundColor: COLORS.border },
+  nextText: { color: COLORS.textInverse, fontWeight: '700', fontSize: 15, letterSpacing: 0.2 },
 });
 
 // ─── Step 0: Location ─────────────────────────────────────────────────────────
@@ -429,7 +438,7 @@ const ls = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: COLORS.primary,
     borderWidth: 2.5,
-    borderColor: '#fff',
+    borderColor: COLORS.textInverse,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -1223,7 +1232,7 @@ const ds = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 5,
   },
-  inputHint: { fontSize: 12, color: '#D97706', fontWeight: '600' },
+  inputHint: { fontSize: 12, color: COLORS.warning, fontWeight: '600' },
   counter: { fontSize: 11, color: COLORS.textSecondary },
   typeRow: { flexDirection: 'row', gap: 8 },
   typeChip: {
@@ -1235,7 +1244,7 @@ const ds = StyleSheet.create({
     backgroundColor: COLORS.background,
     gap: 3,
   },
-  typeChipActive: { borderColor: COLORS.primary, backgroundColor: '#EFF6FF' },
+  typeChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
   typeLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
   typeLabelActive: { color: COLORS.primary },
   typeDesc: { fontSize: 11, color: COLORS.textSecondary },
@@ -1262,7 +1271,7 @@ const ds = StyleSheet.create({
   detailedRatesCtaActive: {
     borderStyle: 'solid',
     borderColor: COLORS.primary,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: COLORS.primaryLight,
   },
   detailedRatesCtaText: {
     fontSize: 13,
@@ -1364,7 +1373,7 @@ function PhotosStep({
 
                 {photo.uploading && (
                   <View style={ps.overlay}>
-                    <ActivityIndicator color="#fff" size="small" />
+                    <ActivityIndicator color={COLORS.textInverse} size="small" />
                   </View>
                 )}
 
@@ -1482,8 +1491,8 @@ const ps = StyleSheet.create({
     justifyContent: 'center',
   },
   overlayError: { backgroundColor: 'rgba(220,38,38,0.72)' },
-  errorMark: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  retryLabel: { color: '#fff', fontSize: 9, fontWeight: '700', marginTop: 1 },
+  errorMark: { color: COLORS.textInverse, fontSize: 22, fontWeight: '800' },
+  retryLabel: { color: COLORS.textInverse, fontSize: 9, fontWeight: '700', marginTop: 1 },
   removeBtn: {
     position: 'absolute',
     top: 5,
@@ -1495,7 +1504,7 @@ const ps = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  removeTxt: { color: COLORS.textInverse, fontSize: 9, fontWeight: '800' },
   checkBadge: {
     position: 'absolute',
     bottom: 5,
@@ -1503,7 +1512,7 @@ const ps = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: '#16A34A',
+    backgroundColor: COLORS.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1520,11 +1529,11 @@ const ps = StyleSheet.create({
   addIcon: { fontSize: 28, color: COLORS.primary, lineHeight: 32 },
   addLabel: { fontSize: 15, fontWeight: '700', color: COLORS.primary },
   errorBanner: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: COLORS.dangerLight,
     borderRadius: 10,
     padding: 12,
   },
-  errorBannerText: { color: '#DC2626', fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  errorBannerText: { color: COLORS.danger, fontSize: 13, fontWeight: '600', lineHeight: 18 },
   statusStrip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1541,7 +1550,7 @@ const ps = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: COLORS.border,
   },
-  statusDotReady: { backgroundColor: '#16A34A' },
+  statusDotReady: { backgroundColor: COLORS.success },
   statusText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
 });
 
@@ -1721,12 +1730,12 @@ const cs = StyleSheet.create({
   infoBox: {
     flexDirection: 'row',
     gap: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: COLORS.primaryLight,
     borderRadius: 14,
     padding: 14,
   },
-  infoTitle: { fontSize: 14, fontWeight: '800', color: '#1E40AF' },
-  infoBody: { fontSize: 13, color: '#1E40AF', lineHeight: 18 },
+  infoTitle: { fontSize: 14, fontWeight: '800', color: COLORS.info },
+  infoBody: { fontSize: 13, color: COLORS.info, lineHeight: 18 },
 });
 
 // ─── Success Screen ───────────────────────────────────────────────────────────
@@ -1746,8 +1755,15 @@ function SuccessScreen({ onDone }: { onDone: () => void }) {
         <Ionicons name="star-outline" size={14} color={COLORS.primary} />
         <Text style={suc.pointText}>+10 points when verified</Text>
       </View>
-      <TouchableOpacity style={suc.btn} onPress={onDone} activeOpacity={0.85}>
-        <Text style={suc.btnText}>Done</Text>
+      <TouchableOpacity style={[suc.btn, SHADOWS.primaryGlow]} onPress={onDone} activeOpacity={0.85}>
+        <LinearGradient
+          colors={GRADIENTS.primaryButton}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={suc.btnInner}
+        >
+          <Text style={suc.btnText}>Done</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
@@ -1766,7 +1782,7 @@ const suc = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: COLORS.successLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -1783,27 +1799,22 @@ const suc = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: COLORS.primaryLight,
     borderRadius: 20,
     paddingHorizontal: 18,
     paddingVertical: 9,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: COLORS.infoBorder,
   },
   pointText: { color: COLORS.primary, fontWeight: '700', fontSize: 14 },
-  btn: {
-    backgroundColor: COLORS.primary,
+  btn: { borderRadius: 14, marginTop: 8 },
+  btnInner: {
     borderRadius: 14,
     paddingHorizontal: 48,
     paddingVertical: 14,
-    marginTop: 8,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 4,
+    alignItems: 'center',
   },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16, letterSpacing: 0.2 },
+  btnText: { color: COLORS.textInverse, fontWeight: '700', fontSize: 16, letterSpacing: 0.2 },
 });
 
 // ─── Moderation Section ───────────────────────────────────────────────────────
@@ -1983,13 +1994,13 @@ function SpotDetailModal({
 
           {/* Score chips */}
           <View style={sdm.scoreRow}>
-            <View style={[sdm.scorePill, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="checkmark" size={13} color="#16A34A" />
-              <Text style={[sdm.scoreNum, { color: '#16A34A' }]}>{item.approvalScore} approval</Text>
+            <View style={[sdm.scorePill, { backgroundColor: COLORS.successLight }]}>
+              <Ionicons name="checkmark" size={13} color={COLORS.success} />
+              <Text style={[sdm.scoreNum, { color: COLORS.success }]}>{item.approvalScore} approval</Text>
             </View>
-            <View style={[sdm.scorePill, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="close" size={13} color="#DC2626" />
-              <Text style={[sdm.scoreNum, { color: '#DC2626' }]}>{item.rejectionScore} rejection</Text>
+            <View style={[sdm.scorePill, { backgroundColor: COLORS.dangerLight }]}>
+              <Ionicons name="close" size={13} color={COLORS.danger} />
+              <Text style={[sdm.scoreNum, { color: COLORS.danger }]}>{item.rejectionScore} rejection</Text>
             </View>
           </View>
 
@@ -2062,10 +2073,10 @@ function SpotDetailModal({
             activeOpacity={0.8}
           >
             {votingReject ? (
-              <ActivityIndicator size="small" color="#DC2626" />
+              <ActivityIndicator size="small" color={COLORS.danger} />
             ) : (
               <>
-                <Ionicons name="close-circle" size={18} color="#DC2626" />
+                <Ionicons name="close-circle" size={18} color={COLORS.danger} />
                 <Text style={sdm.rejectText}>Reject</Text>
               </>
             )}
@@ -2077,10 +2088,10 @@ function SpotDetailModal({
             activeOpacity={0.8}
           >
             {votingApprove ? (
-              <ActivityIndicator size="small" color="#16A34A" />
+              <ActivityIndicator size="small" color={COLORS.success} />
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
                 <Text style={sdm.approveText}>Approve</Text>
               </>
             )}
@@ -2225,10 +2236,10 @@ const sdm = StyleSheet.create({
     paddingVertical: 15,
   },
   voteBtnLoading: { opacity: 0.6 },
-  rejectBtn: { backgroundColor: '#FEE2E2' },
-  approveBtn: { backgroundColor: '#DCFCE7' },
-  rejectText: { color: '#DC2626', fontWeight: '700', fontSize: 15 },
-  approveText: { color: '#16A34A', fontWeight: '700', fontSize: 15 },
+  rejectBtn: { backgroundColor: COLORS.dangerLight },
+  approveBtn: { backgroundColor: COLORS.successLight },
+  rejectText: { color: COLORS.danger, fontWeight: '700', fontSize: 15 },
+  approveText: { color: COLORS.success, fontWeight: '700', fontSize: 15 },
 });
 
 function QueueCard({
@@ -2264,13 +2275,13 @@ function QueueCard({
 
       <View style={mds.cardFooter}>
         <View style={mds.scoreRow}>
-          <View style={[mds.scorePill, { backgroundColor: '#DCFCE7' }]}>
-            <Ionicons name="checkmark" size={12} color="#16A34A" />
-            <Text style={[mds.scoreNum, { color: '#16A34A' }]}>{item.approvalScore}</Text>
+          <View style={[mds.scorePill, { backgroundColor: COLORS.successLight }]}>
+            <Ionicons name="checkmark" size={12} color={COLORS.success} />
+            <Text style={[mds.scoreNum, { color: COLORS.success }]}>{item.approvalScore}</Text>
           </View>
-          <View style={[mds.scorePill, { backgroundColor: '#FEE2E2' }]}>
-            <Ionicons name="close" size={12} color="#DC2626" />
-            <Text style={[mds.scoreNum, { color: '#DC2626' }]}>{item.rejectionScore}</Text>
+          <View style={[mds.scorePill, { backgroundColor: COLORS.dangerLight }]}>
+            <Ionicons name="close" size={12} color={COLORS.danger} />
+            <Text style={[mds.scoreNum, { color: COLORS.danger }]}>{item.rejectionScore}</Text>
           </View>
         </View>
         <View style={mds.reviewCta}>
@@ -2458,10 +2469,10 @@ const mds = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  rejectBtn: { backgroundColor: '#FEE2E2' },
-  approveBtn: { backgroundColor: '#DCFCE7' },
-  rejectText: { color: '#DC2626', fontWeight: '700', fontSize: 14 },
-  approveText: { color: '#16A34A', fontWeight: '700', fontSize: 14 },
+  rejectBtn: { backgroundColor: COLORS.dangerLight },
+  approveBtn: { backgroundColor: COLORS.successLight },
+  rejectText: { color: COLORS.danger, fontWeight: '700', fontSize: 14 },
+  approveText: { color: COLORS.success, fontWeight: '700', fontSize: 14 },
   pagination: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2520,17 +2531,24 @@ function LandingView({ onStart, refreshing, onRefresh }: { onStart: () => void; 
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
     >
       {/* Hero CTA */}
-      <TouchableOpacity style={lv.heroCard} onPress={onStart} activeOpacity={0.88}>
-        <View style={lv.heroIcon}>
-          <Text style={lv.heroPlus}>+</Text>
-        </View>
-        <View style={{ flex: 1, gap: 3 }}>
-          <Text style={lv.heroTitle}>Add a Parking Spot</Text>
-          <Text style={lv.heroSub}>
-            Help the community find parking — earn points toward Hawk tier
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+      <TouchableOpacity style={[lv.heroCard, SHADOWS.primaryGlow]} onPress={onStart} activeOpacity={0.88}>
+        <LinearGradient
+          colors={GRADIENTS.primaryButton}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={lv.heroInner}
+        >
+          <View style={lv.heroIcon}>
+            <Text style={lv.heroPlus}>+</Text>
+          </View>
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={lv.heroTitle}>Add a Parking Spot</Text>
+            <Text style={lv.heroSub}>
+              Help the community find parking — earn points toward Hawk tier
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.85)" />
+        </LinearGradient>
       </TouchableOpacity>
 
       <ModerationSection />
@@ -2540,18 +2558,13 @@ function LandingView({ onStart, refreshing, onRefresh }: { onStart: () => void; 
 
 const lv = StyleSheet.create({
   scroll: { padding: 20 },
-  heroCard: {
-    backgroundColor: COLORS.primary,
+  heroCard: { borderRadius: 16 },
+  heroInner: {
     borderRadius: 16,
     padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.32,
-    shadowRadius: 14,
-    elevation: 6,
   },
   heroIcon: {
     width: 46,
@@ -2561,8 +2574,8 @@ const lv = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroPlus: { color: '#fff', fontSize: 28, fontWeight: '300', lineHeight: 32 },
-  heroTitle: { fontSize: 17, fontWeight: '800', color: '#fff', letterSpacing: -0.2 },
+  heroPlus: { color: COLORS.textInverse, fontSize: 28, fontWeight: '300', lineHeight: 32 },
+  heroTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textInverse, letterSpacing: -0.2 },
   heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 18 },
   heroArrow: { color: 'rgba(255,255,255,0.6)', fontSize: 22 },
 });

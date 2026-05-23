@@ -1,0 +1,39 @@
+<svg viewBox="0 0 200 320" xmlns="http://www.w3.org/2000/svg">
+  <ellipse cx="100" cy="300" rx="15" ry="5" fill="#000000" opacity="0.15"/>
+
+  <path d="M85,170 L115,170 L108,280 L100,300 L92,280 Z" fill="#2563EB"/>
+  <path d="M100,170 L115,170 L108,280 L100,300 Z" fill="#1D4ED8"/> <circle cx="100" cy="98" r="94" fill="#3B7BF7"/>
+  <circle cx="100" cy="100" r="94" fill="#1D4ED8"/>
+
+  <circle cx="100" cy="100" r="90" fill="#2563EB"/>
+
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#ffffff" stroke-width="7"/>
+
+  <circle cx="100" cy="100" r="76" fill="#3B7BF7"/>
+
+  <rect x="96" y="34" width="8" height="15" rx="4" fill="#93C5FD"/>
+  <rect x="96" y="151" width="8" height="15" rx="4" fill="#93C5FD"/>
+  <path d="M 62 52 L 71 65" stroke="#93C5FD" stroke-width="7.5" stroke-linecap="round"/>
+  <path d="M 138 52 L 129 65" stroke="#93C5FD" stroke-width="7.5" stroke-linecap="round"/>
+  <path d="M 65 147 L 75 134" stroke="#93C5FD" stroke-width="7.5" stroke-linecap="round"/>
+  <path d="M 135 147 L 125 134" stroke="#93C5FD" stroke-width="7.5" stroke-linecap="round"/>
+
+  <path d="M 63 77 Q 75 65 87 73" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  <path d="M 137 77 Q 125 65 113 73" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+
+  <circle cx="75" cy="100" r="16.5" fill="#ffffff"/>
+  <circle cx="125" cy="100" r="16.5" fill="#ffffff"/>
+
+  <circle cx="75" cy="100" r="9.5" fill="#0E1726"/>
+  <circle cx="125" cy="100" r="9.5" fill="#0E1726"/>
+
+  <circle cx="78" cy="96" r="3.5" fill="#ffffff"/>
+  <circle cx="128" cy="96" r="3.5" fill="#ffffff"/>
+
+  <path d="M 47 104 L 35 112 L 47 118 Z" fill="#ffffff" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M 153 104 L 165 112 L 153 118 Z" fill="#ffffff" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
+
+  <polygon points="86,116 114,116 100,134" fill="#ff9900" stroke="#ff9900" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="86,114 100,103 114,114 100,125" fill="#ffcc00" stroke="#ffcc00" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="88,114 100,105 112,114 100,121" fill="#ffe666"/>
+</svg>

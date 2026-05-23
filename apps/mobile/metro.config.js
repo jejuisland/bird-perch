@@ -19,4 +19,9 @@ config.resolver.nodeModulesPaths = [
 // pnpm uses symlinks; Metro must follow them to resolve deps
 config.resolver.unstable_enableSymlinks = true;
 
+// react-native-svg-transformer: import .svg files as React components
+config.transformer.babelTransformerPath = require.resolve('react-native-svg-transformer/expo');
+config.resolver.assetExts = config.resolver.assetExts.filter((ext) => ext !== 'svg');
+config.resolver.sourceExts = [...config.resolver.sourceExts, 'svg'];
+
 module.exports = config;

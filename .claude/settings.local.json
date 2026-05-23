@@ -62,7 +62,19 @@
       "Bash(cmd *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npx --prefix apps/mobile tsc --noEmit -p apps/mobile/tsconfig.json)",
+      "Bash(echo \"exit: $?\")",
+      "PowerShell(pnpm *)",
+      "Bash(git stash *)",
+      "Bash(pnpm --filter @perch/mobile exec tsc --noEmit)",
+      "Bash(pnpm add *)",
+      "Bash(tasklist)",
+      "Bash(echo \"started metro pid $!\")",
+      "Bash(xargs -I{} echo \"node procs before: {}\")",
+      "Read(//c/Users/macpe/Desktop/Projects/perch/**)",
+      "Read(//c/Users/macpe/**)",
+      "Bash(git checkout *)"
     ]
   }
 }

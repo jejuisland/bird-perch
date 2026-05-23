@@ -34,7 +34,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
     // Authenticated + profile incomplete + not on register or verify-otp → send to profile completion
     const authScreens = ['register', 'verify-otp'];
-    if (isAuthenticated && !profileComplete && inAuth && !authScreens.includes(segments[1] as string)) {
+    if (isAuthenticated && !profileComplete && inAuth && !authScreens.includes((segments as string[])[1])) {
       router.replace('/(auth)/register');
     }
   }, [isAuthenticated, isLoading, user, segments]);

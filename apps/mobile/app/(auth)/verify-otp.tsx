@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
-  Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { COLORS } from '../../constants';
 import AuthScreenWrapper from '../../components/ui/AuthScreenWrapper';
+import GradientButton from '../../components/ui/GradientButton';
 
 function formatSeconds(s: number) {
   const m = Math.floor(s / 60).toString().padStart(2, '0');
@@ -115,19 +115,13 @@ export default function VerifyOtpScreen() {
           <Text style={styles.timer}>Code expires in {formatSeconds(secondsLeft)}</Text>
         )}
 
-        <TouchableOpacity
-          style={[styles.btn, (loading || code.length !== 6) && styles.btnDisabled]}
+        <GradientButton
+          label={isRegistration ? 'Verify & Create Account' : 'Verify'}
           onPress={handleVerify}
-          disabled={loading || code.length !== 6}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.btnText}>
-              {isRegistration ? 'Verify & Create Account' : 'Verify'}
-            </Text>
-          )}
-        </TouchableOpacity>
+          loading={loading}
+          disabled={code.length !== 6}
+          style={styles.btn}
+        />
 
         <TouchableOpacity
           onPress={handleResend}
@@ -160,12 +154,7 @@ const styles = StyleSheet.create({
     color: COLORS.text, backgroundColor: COLORS.surface, marginBottom: 12,
   },
   timer: { textAlign: 'center', fontSize: 13, color: COLORS.textSecondary, marginBottom: 20 },
-  btn: {
-    backgroundColor: COLORS.primary, borderRadius: 12,
-    padding: 16, alignItems: 'center', marginBottom: 16,
-  },
-  btnDisabled: { opacity: 0.45 },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  btn: { marginBottom: 16 },
   resendRow: { alignItems: 'center' },
   resendText: { color: COLORS.primary, fontWeight: '600', fontSize: 14 },
   resendDisabled: { color: COLORS.textSecondary },
