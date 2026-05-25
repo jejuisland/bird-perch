@@ -318,7 +318,7 @@ function ProfileStep({ onBack }: { onBack: () => void }) {
 
         <View style={styles.loginRow}>
           <Text style={styles.loginText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(auth)/login')}>
             <Text style={styles.loginLink}>Sign In</Text>
           </TouchableOpacity>
         </View>
@@ -337,7 +337,7 @@ export default function RegisterScreen() {
     return (
       <TermsStep
         onAccept={() => setStep('profile')}
-        onBack={() => router.replace('/(auth)/login')}
+        onBack={() => router.canGoBack() ? router.back() : router.replace('/(auth)/login')}
       />
     );
   }
