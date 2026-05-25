@@ -5,9 +5,14 @@ import { ParkingSpot } from '@perch/shared';
 import { useMapStore } from '../../store/mapStore';
 import { OSM_TILE_URL, DEFAULT_REGION, COLORS } from '../../constants';
 import HeatmapLayer from './HeatmapLayer';
-import ParkingMarker from './ParkingMarker';
 
 type Coord = { latitude: number; longitude: number };
+
+// Pre-rasterized pin images. Using Marker's native `image` prop (instead of a
+// custom child view) avoids react-native-maps' Android view-rasterization bug
+// that cropped the top of the pin. iOS/Android both render these whole.
+const PIN_VERIFIED = require('../../assets/pin-marker.png');
+const PIN_UNVERIFIED = require('../../assets/pin-marker-unverified.png');
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -60,6 +65,25 @@ interface Props {
   searchedLocation?: SearchedLocation | null;
   onRouteUpdate?: (info: RouteInfo | null) => void;
   onReroutingChange?: (rerouting: boolean) => void;
+}
+
+function SpotMarker({
+  spot,
+  isUnverified,
+  onPress,
+}: {
+  spot: ParkingSpot;
+  isUnverified: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Marker
+      coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
+      onPress={onPress}
+      image={isUnverified ? PIN_UNVERIFIED : PIN_VERIFIED}
+      anchor={{ x: 0.5, y: 1 }}
+    />
+  );
 }
 
 const ParkingMap = forwardRef<MapView, Props>(
@@ -214,7 +238,7 @@ const ParkingMap = forwardRef<MapView, Props>(
         {walkRoute.length > 1 && (
           <>
             <Polyline coordinates={walkRoute} strokeColor="rgba(255,255,255,0.75)" strokeWidth={7} />
-            <Polyline coordinates={walkRoute} strokeColor="#F97316" strokeWidth={4} />
+            <Polyline coordinates={walkRoute} strokeColor={COLORS.walkRoute} strokeWidth={4} />
           </>
         )}
 
@@ -224,7 +248,7 @@ const ParkingMap = forwardRef<MapView, Props>(
               { latitude: userLocation.latitude, longitude: userLocation.longitude },
               { latitude: parkedLocation.latitude, longitude: parkedLocation.longitude },
             ]}
-            strokeColor="#F97316"
+            strokeColor={COLORS.walkRoute}
             strokeWidth={2.5}
             lineDashPattern={[8, 6]}
           />
@@ -235,23 +259,19 @@ const ParkingMap = forwardRef<MapView, Props>(
             coordinate={{ latitude: parkedLocation.latitude, longitude: parkedLocation.longitude }}
             title="My Car 🚗"
             description="Your parked car"
-            pinColor="#F97316"
+            pinColor={COLORS.walkRoute}
           />
         )}
 
         {filteredSpots.map((spot) => {
-          const isSelected = selectedSpot?.id === spot.id;
           const isUnverified = spot.communityVerification === 'unverified';
           return (
-            <Marker
-              key={`${spot.id}_${isSelected ? 's' : 'd'}`}
-              coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
+            <SpotMarker
+              key={spot.id}
+              spot={spot}
+              isUnverified={isUnverified}
               onPress={() => onMarkerPress(spot)}
-              tracksViewChanges={false}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <ParkingMarker selected={isSelected} unverified={isUnverified} />
-            </Marker>
+            />
           );
         })}
       </MapView>
@@ -267,7 +287,7 @@ const searchPinStyles = StyleSheet.create({
   bubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surfaceElevated,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 6,

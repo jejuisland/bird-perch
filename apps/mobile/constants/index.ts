@@ -1,6 +1,24 @@
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
-export const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+/**
+ * Raster map tiles.
+ *
+ * OpenStreetMap's volunteer tile servers (tile.openstreetmap.org) block app
+ * usage — `UrlTile` can't send the identifying User-Agent their policy requires,
+ * so they return 403 (osm.wiki/Blocked). We default to Carto's keyless basemap
+ * CDN, which permits app/dev usage with "© OpenStreetMap contributors © CARTO"
+ * attribution.
+ *
+ * For production, set EXPO_PUBLIC_MAP_TILE_URL to a provider with an API key, e.g.
+ *   MapTiler: https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=YOUR_KEY
+ *   Stadia:   https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}.png?api_key=YOUR_KEY
+ */
+export const MAP_TILE_URL =
+  process.env.EXPO_PUBLIC_MAP_TILE_URL ??
+  'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+
+/** @deprecated Kept for back-compat; use {@link MAP_TILE_URL}. */
+export const OSM_TILE_URL = MAP_TILE_URL;
 
 export const DEFAULT_REGION = {
   latitude: 14.5547,
@@ -11,25 +29,38 @@ export const DEFAULT_REGION = {
 
 export const SEARCH_RADIUS_METERS = 3000;
 
+/**
+ * Perch color scheme — a confident blue identity kept from feeling flat via
+ * gradients, glows, soft elevation, and a cyan→indigo heat ramp.
+ * Values are the source of truth (see docs / marketing-site `globals.css`).
+ */
 export const COLORS = {
   // Brand
-  primary: '#2563EB',
-  primaryLight: '#EFF6FF',
-  primaryDark: '#1D4ED8',
+  primary: '#2563EB', // Primary actions, links, verified pins, focus rings
+  primaryBright: '#3B7BF7', // Gradient top stop, highlights
+  primaryLight: '#EFF6FF', // Accent surface (blue-50): tinted chips / icon backgrounds
+  primaryDark: '#1D4ED8', // Pressed/active, accent text on light, gradient bottom stop
+  primaryMuted: '#93C5FD', // Disabled primary fills
+
+  // Secondary accent (sky)
+  sky: '#0EA5E9', // Fills / icons only — not legible as text on light
+  skyDeep: '#0369A1', // Sky used as text/icons on light backgrounds
 
   // Backgrounds
   background: '#FFFFFF',
-  surface: '#F8FAFC',
+  surface: '#F1F5F9', // Surface Subtle: muted fills, alternating sections, input bg
   surfaceElevated: '#FFFFFF',
+  wash: '#EAF1FF', // Background wash top stop (behind hero/feature areas)
 
   // Text
-  text: '#0F172A',
-  textSecondary: '#64748B',
+  text: '#0E1726', // Ink — primary text + dark section backgrounds
+  textSecondary: '#5B6573', // Muted/supporting (passes AA on white)
   textTertiary: '#94A3B8',
   textInverse: '#FFFFFF',
 
   // Borders
-  border: '#E2E8F0',
+  border: '#E3E6EB', // Hairline borders, dividers
+  inputBorder: '#CBD5E1', // Form field borders
   borderFocus: '#2563EB',
 
   // Status — success
@@ -39,14 +70,16 @@ export const COLORS = {
   // Status — danger
   danger: '#DC2626',
   dangerLight: '#FEE2E2',
+  dangerBorder: '#FECACA',
 
   // Status — warning
   warning: '#D97706',
   warningLight: '#FEF3C7',
   warningText: '#92400E',
+  warningBorder: '#FDE68A',
 
-  // Status — info
-  info: '#1E40AF',
+  // Status — info (Info === Primary per the scheme)
+  info: '#2563EB',
   infoLight: '#EFF6FF',
   infoBorder: '#BFDBFE',
 
@@ -59,13 +92,73 @@ export const COLORS = {
   tierEagleBg: '#FFFBEB',
 
   // Map / specialty
-  star: '#F59E0B',
+  star: '#D97706', // Ratings (stars) use Amber
   accent: '#2563EB',
-  heatmapLow: 'rgba(37, 99, 235, 0.2)',
-  heatmapHigh: 'rgba(239, 68, 68, 0.8)',
+  walkRoute: '#D97706', // Walk-to-parked-car route/marker (Amber — distinct from blue drive route)
+  heatLow: 'rgba(34, 211, 238, 0.45)', // cyan
+  heatMid: 'rgba(37, 99, 235, 0.55)', // blue
+  heatHigh: 'rgba(79, 70, 229, 0.70)', // indigo
+  // Back-compat aliases (heat ramp endpoints)
+  heatmapLow: 'rgba(34, 211, 238, 0.45)',
+  heatmapHigh: 'rgba(79, 70, 229, 0.70)',
   markerDefault: '#2563EB',
   markerSelected: '#1D4ED8',
 };
+
+/**
+ * Gradient stops (top → bottom) for `expo-linear-gradient`.
+ * The "depth" system — apply to primary actions and key surfaces so the blue
+ * never reads flat.
+ */
+export const GRADIENTS = {
+  primaryButton: ['#3B7BF7', '#1D4ED8'] as const,
+  primaryButtonPressed: ['#4685F8', '#2059D6'] as const,
+  verifiedPin: ['#3B7BF7', '#1D4ED8'] as const,
+  backgroundWash: ['#EAF1FF', '#FFFFFF'] as const,
+} as const;
+
+/** Elevation presets (Ink-based soft shadows + primary glow). */
+export const SHADOWS = {
+  /** Soft card elevation. */
+  softCard: {
+    shadowColor: '#0E1726',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  /** Blue glow under primary buttons. */
+  primaryGlow: {
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+} as const;
+
+/** Heatmap density ramp: cool cyan (low) → blue → deep indigo (high). RGB stops. */
+export const HEAT_RAMP = {
+  low: [34, 211, 238] as const, // cyan
+  mid: [37, 99, 235] as const, // blue
+  high: [79, 70, 229] as const, // indigo
+} as const;
+
+/**
+ * Dark-section / dark-mode token set (defined, not yet wired — the app runs
+ * light-only via app.json `userInterfaceStyle: "light"`). Adopting runtime
+ * theming later can consume these without re-deriving values.
+ */
+export const DARK = {
+  background: '#0E1726', // Ink
+  surface: 'rgba(255,255,255,0.04)',
+  text: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.70)',
+  border: 'rgba(255,255,255,0.14)',
+  // Brighter accents read better on Ink than #2563EB
+  accent: '#3B7BF7',
+  sky: '#0EA5E9',
+} as const;
 
 /** Tier badge color pair — background + text */
 export const TIER_COLORS: Record<string, { bg: string; text: string; border: string }> = {

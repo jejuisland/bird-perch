@@ -11,7 +11,7 @@ export default function PerchLogo({ showTagline = false, size = 100 }: Props) {
   return (
     <View style={styles.wrapper}>
       <Image
-        source={require('../../assets/logo.png')}
+        source={require('../../assets/refined-logo.png')}
         style={{ width: size, height: size, resizeMode: 'contain' }}
       />
       <Text style={styles.brand}>Perch</Text>

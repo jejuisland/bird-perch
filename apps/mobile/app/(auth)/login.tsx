@@ -1,13 +1,13 @@
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { COLORS } from '../../constants';
 import PerchLogo from '../../components/ui/PerchLogo';
 import AuthScreenWrapper from '../../components/ui/AuthScreenWrapper';
+import GradientButton from '../../components/ui/GradientButton';
 
 type LoginMode = 'otp' | 'password';
 
@@ -114,19 +114,12 @@ export default function LoginScreen() {
             />
           )}
 
-          <TouchableOpacity
-            style={[styles.btn, (loading || (mode === 'otp' ? !canSubmitOtp : !canSubmitPassword)) && styles.btnDisabled]}
+          <GradientButton
+            label={mode === 'otp' ? 'Get Code →' : 'Sign In →'}
             onPress={mode === 'otp' ? handleOtp : handlePassword}
-            disabled={loading || (mode === 'otp' ? !canSubmitOtp : !canSubmitPassword)}
-          >
-            {loading ? (
-              <ActivityIndicator color={COLORS.textInverse} />
-            ) : (
-              <Text style={styles.btnText}>
-                {mode === 'otp' ? 'Get Code →' : 'Sign In →'}
-              </Text>
-            )}
-          </TouchableOpacity>
+            loading={loading}
+            disabled={mode === 'otp' ? !canSubmitOtp : !canSubmitPassword}
+          />
         </View>
 
         <View style={styles.footer}>

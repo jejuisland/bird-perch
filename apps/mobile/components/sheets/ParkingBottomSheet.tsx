@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, ActivityIndicator, Alert, Linking, Platform, Share, Modal,
+  TextInput, Alert, Linking, Platform, Share, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   ParkingSpot, VehicleRate,
   calculateParkingFee, availableVehicleTypes, PricingVehicleType, FeeBreakdown,
 } from '@perch/shared';
 import { favoritesApi, reviewsApi } from '../../services/api';
-import { COLORS } from '../../constants';
+import { COLORS, GRADIENTS, SHADOWS } from '../../constants';
+import GradientButton from '../ui/GradientButton';
 
 interface Props {
   spot: ParkingSpot | null;
@@ -75,9 +77,9 @@ const FACILITY_ICONS: Record<string, IoniconsName> = {
 const TYPE_LABEL: Record<string, string> = { street: 'Street', mall: 'Mall', private_lot: 'Private' };
 
 const STATUS_COLOR: Record<string, string> = {
-  usually_available: '#16A34A',
-  usually_busy: '#DC2626',
-  unknown: '#9CA3AF',
+  usually_available: COLORS.success,
+  usually_busy: COLORS.danger,
+  unknown: COLORS.textTertiary,
 };
 const STATUS_LABEL: Record<string, string> = {
   usually_available: 'Usually Free',
@@ -318,10 +320,10 @@ function formatDuration(minutes: number) {
 }
 
 const CONFIDENCE_META: Record<string, { color: string; bg: string; label: string }> = {
-  high: { color: '#16A34A', bg: '#F0FDF4', label: 'Verified rates' },
-  medium: { color: COLORS.primary, bg: '#EFF6FF', label: 'Community rates' },
-  low: { color: '#D97706', bg: '#FFFBEB', label: 'Unverified rates' },
-  none: { color: '#6B7280', bg: '#F3F4F6', label: 'No structured rates' },
+  high: { color: COLORS.success, bg: COLORS.successLight, label: 'Verified rates' },
+  medium: { color: COLORS.primary, bg: COLORS.primaryLight, label: 'Community rates' },
+  low: { color: COLORS.warning, bg: COLORS.tierEagleBg, label: 'Unverified rates' },
+  none: { color: COLORS.textSecondary, bg: COLORS.surface, label: 'No structured rates' },
 };
 
 function TimePickerModal({
@@ -768,9 +770,16 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
 
             {/* ── Actions ── */}
             <View style={styles.actions}>
-              <TouchableOpacity style={styles.navigateBtn} onPress={handleNavigate} activeOpacity={0.85}>
-                <Ionicons name="navigate-outline" size={15} color={COLORS.textInverse} />
-                <Text style={styles.navigateBtnText}>Navigate</Text>
+              <TouchableOpacity style={[styles.navigateBtn, SHADOWS.primaryGlow]} onPress={handleNavigate} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={GRADIENTS.primaryButton}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={styles.navigateGradient}
+                >
+                  <Ionicons name="navigate-outline" size={15} color={COLORS.textInverse} />
+                  <Text style={styles.navigateBtnText}>Navigate</Text>
+                </LinearGradient>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
                 <Ionicons name="share-outline" size={15} color={COLORS.primary} />
@@ -905,16 +914,13 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               multiline
               textAlignVertical="top"
             />
-            <TouchableOpacity
-              style={[styles.submitBtn, newRating === 0 && styles.submitBtnDisabled]}
+            <GradientButton
+              label="Submit Review"
               onPress={handleSubmitReview}
-              disabled={submitting || newRating === 0}
-              activeOpacity={0.85}
-            >
-              {submitting
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.submitText}>Submit Review</Text>}
-            </TouchableOpacity>
+              loading={submitting}
+              disabled={newRating === 0}
+              style={styles.submitBtn}
+            />
 
             {/* ── Reviews ── */}
             {reviews.length > 0 && (
@@ -963,13 +969,13 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 12,
   },
-  handle: { backgroundColor: '#D1D5DB', width: 44, height: 4, borderRadius: 2 },
+  handle: { backgroundColor: COLORS.inputBorder, width: 44, height: 4, borderRadius: 2 },
   content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 64 },
 
   spotName: { fontSize: 21, fontWeight: '800', color: COLORS.text, marginBottom: 10 },
 
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  typeChip: { backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  typeChip: { backgroundColor: COLORS.primaryLight, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   typeChipText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
   statusChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
@@ -980,11 +986,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: COLORS.border,
   },
-  unverifiedChipText: { fontSize: 12, fontWeight: '700', color: '#374151' },
+  unverifiedChipText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
   slotsChip: { backgroundColor: COLORS.surface, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   slotsText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
 
@@ -992,9 +998,10 @@ const styles = StyleSheet.create({
   ratingMeta: { fontSize: 13, color: COLORS.textSecondary },
 
   actions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  navigateBtn: {
-    flex: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 14, gap: 8,
+  navigateBtn: { flex: 3, borderRadius: 14 },
+  navigateGradient: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 14, paddingVertical: 14, gap: 8,
   },
   navigateBtnText: { color: COLORS.textInverse, fontWeight: '700', fontSize: 15 },
   shareBtn: {
@@ -1051,12 +1058,7 @@ const styles = StyleSheet.create({
     padding: 14, minHeight: 80, fontSize: 14, color: COLORS.text,
     backgroundColor: COLORS.surface,
   },
-  submitBtn: {
-    backgroundColor: COLORS.primary, borderRadius: 12, padding: 15,
-    alignItems: 'center', marginTop: 12, marginBottom: 24,
-  },
-  submitBtnDisabled: { backgroundColor: '#93C5FD' },
-  submitText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  submitBtn: { marginTop: 12, marginBottom: 24 },
 
   reviewCard: { backgroundColor: COLORS.surface, borderRadius: 14, padding: 14, marginBottom: 10 },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
@@ -1075,7 +1077,7 @@ const styles = StyleSheet.create({
 
 const routeStyles = StyleSheet.create({
   card: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: COLORS.primaryLight,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -1085,7 +1087,7 @@ const routeStyles = StyleSheet.create({
   icon: { fontSize: 22 },
   value: { fontSize: 15, fontWeight: '800', color: COLORS.text },
   label: { fontSize: 11, color: COLORS.textSecondary, marginTop: 1 },
-  divider: { width: 1, height: 32, backgroundColor: '#BFDBFE', marginHorizontal: 4 },
+  divider: { width: 1, height: 32, backgroundColor: COLORS.infoBorder, marginHorizontal: 4 },
   note: { fontSize: 11, color: COLORS.textSecondary, marginTop: 10, textAlign: 'center' },
 });
 
@@ -1120,13 +1122,13 @@ const rateStyles = StyleSheet.create({
   rateValue: { fontSize: 13, fontWeight: '600', color: COLORS.text },
 
   overnightRow: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: COLORS.tierEagleBg,
     borderRadius: 8,
     paddingHorizontal: 10,
     marginTop: 4,
   },
   overnightLabel: { fontSize: 12, color: COLORS.warningText, flex: 1 },
-  overnightValue: { fontSize: 12, fontWeight: '700', color: '#DC2626' },
+  overnightValue: { fontSize: 12, fontWeight: '700', color: COLORS.danger },
 
   vehicleDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 10 },
 
@@ -1140,7 +1142,7 @@ const rateStyles = StyleSheet.create({
     borderTopColor: COLORS.border,
   },
   lostTicketLabel: { fontSize: 13, color: COLORS.textSecondary },
-  lostTicketValue: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
+  lostTicketValue: { fontSize: 13, fontWeight: '700', color: COLORS.danger },
 });
 
 // ─── Conditions styles ────────────────────────────────────────────────────────
@@ -1157,7 +1159,7 @@ const condStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFBEB',
+    backgroundColor: COLORS.tierEagleBg,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -1178,7 +1180,7 @@ const calcStyles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#F0FDF4', paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: COLORS.successLight, paddingHorizontal: 16, paddingVertical: 14,
   },
   headerTitle: { fontSize: 15, fontWeight: '700', color: COLORS.success },
   body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16 },
@@ -1190,7 +1192,7 @@ const calcStyles = StyleSheet.create({
     flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12,
     borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface,
   },
-  vehicleTabActive: { borderColor: COLORS.primary, backgroundColor: '#EFF6FF' },
+  vehicleTabActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
   vehicleTabGap: { marginBottom: 2 },
   vehicleTabLabel: { fontSize: 11, fontWeight: '600', color: COLORS.textSecondary },
   vehicleTabLabelActive: { color: COLORS.primary },
@@ -1212,7 +1214,7 @@ const calcStyles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20,
     backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border,
   },
-  durationChipActive: { borderColor: COLORS.primary, backgroundColor: '#EFF6FF' },
+  durationChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
   durationChipText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
   durationChipTextActive: { color: COLORS.primary },
 
@@ -1227,28 +1229,28 @@ const calcStyles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
     backgroundColor: COLORS.primary,
   },
-  customSetText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  customSetText: { color: COLORS.textInverse, fontWeight: '700', fontSize: 14 },
 
   breakdownCard: { marginTop: 14 },
   breakdownDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 10 },
   lineItemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   lineItemLabel: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
   lineItemAmount: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-  lineItemFree: { color: '#16A34A' },
+  lineItemFree: { color: COLORS.success },
 
   totalRow: { marginTop: 2 },
   capRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#FFF7ED', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 6,
+    backgroundColor: COLORS.tierEagleBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 6,
   },
-  capLabel: { fontSize: 12, color: '#92400E' },
-  capValue: { fontSize: 12, fontWeight: '700', color: '#92400E' },
+  capLabel: { fontSize: 12, color: COLORS.warningText },
+  capValue: { fontSize: 12, fontWeight: '700', color: COLORS.warningText },
   totalAmountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   totalLabel: { fontSize: 13, fontWeight: '800', color: COLORS.text, letterSpacing: 0.4 },
   totalAmount: { fontSize: 22, fontWeight: '900', color: COLORS.primary },
   exitNote: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'right', marginTop: 2, marginBottom: 8 },
 
-  warning: { fontSize: 12, color: '#D97706', marginBottom: 6, lineHeight: 17 },
+  warning: { fontSize: 12, color: COLORS.warning, marginBottom: 6, lineHeight: 17 },
   confidenceBadge: {
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginTop: 4,
   },
@@ -1266,7 +1268,7 @@ const calcStyles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   modalCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 24,
+    backgroundColor: COLORS.surfaceElevated, borderRadius: 20, padding: 24,
     width: 280, alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15, shadowRadius: 20, elevation: 20,
@@ -1283,7 +1285,7 @@ const calcStyles = StyleSheet.create({
     backgroundColor: COLORS.primary, borderRadius: 12,
     paddingHorizontal: 32, paddingVertical: 13, width: '100%', alignItems: 'center',
   },
-  modalConfirmText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  modalConfirmText: { color: COLORS.textInverse, fontWeight: '700', fontSize: 16 },
 });
 
 // ─── Inline ad styles ─────────────────────────────────────────────────────────
@@ -1298,13 +1300,15 @@ const adStyles = StyleSheet.create({
   },
   imageBg: {
     height: 110,
+    // Intentional deep-blue ad placeholder (blue-900) — a sample sponsor surface
+    // outside the core scheme; light-blue copy sits on top for contrast.
     backgroundColor: '#1E3A8A',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
 
-  imageCopy: { fontSize: 13, color: '#BFDBFE', textAlign: 'center', lineHeight: 18 },
+  imageCopy: { fontSize: 13, color: COLORS.infoBorder, textAlign: 'center', lineHeight: 18 },
   footer: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
   adTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   adMeta: { fontSize: 11, color: COLORS.textSecondary, marginTop: 1 },

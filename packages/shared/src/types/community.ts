@@ -51,6 +51,7 @@ export interface CreateCommunityParkingSpotDto {
   rates?: string;
   detailedRates?: DetailedRates;
   operatingHours?: string;
+  landmark?: string;
   photoStoragePaths: string[];
   submissionLatitude: number;
   submissionLongitude: number;

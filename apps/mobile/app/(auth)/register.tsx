@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { VehicleType } from '@perch/shared';
@@ -9,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { COLORS } from '../../constants';
 import { API_BASE_URL } from '../../constants';
 import AuthScreenWrapper from '../../components/ui/AuthScreenWrapper';
+import GradientButton from '../../components/ui/GradientButton';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -82,9 +82,7 @@ function TermsStep({ onAccept, onBack }: { onAccept: () => void; onBack: () => v
         By tapping Accept, you agree to all terms above.
       </Text>
 
-      <TouchableOpacity style={styles.btn} onPress={onAccept}>
-        <Text style={styles.btnText}>Accept All & Continue →</Text>
-      </TouchableOpacity>
+      <GradientButton label="Accept All & Continue →" onPress={onAccept} style={styles.btn} />
     </AuthScreenWrapper>
   );
 }
@@ -311,13 +309,12 @@ function ProfileStep({ onBack }: { onBack: () => void }) {
           </>
         )}
 
-        <TouchableOpacity style={styles.btn} onPress={handleRegister} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.btnText}>Register & Send Code →</Text>
-          )}
-        </TouchableOpacity>
+        <GradientButton
+          label="Register & Send Code →"
+          onPress={handleRegister}
+          loading={loading}
+          style={styles.btn}
+        />
 
         <View style={styles.loginRow}>
           <Text style={styles.loginText}>Already have an account? </Text>
@@ -407,7 +404,7 @@ const styles = StyleSheet.create({
   vehicleBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   vehicleIcon: { fontSize: 22 },
   vehicleLabel: { color: COLORS.text, fontSize: 13, fontWeight: '500' },
-  vehicleLabelActive: { color: '#fff', fontWeight: '600' },
+  vehicleLabelActive: { color: COLORS.textInverse, fontWeight: '600' },
 
   checkbox: {
     width: 22, height: 22, borderRadius: 6,
@@ -415,7 +412,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkmark: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  checkmark: { color: COLORS.textInverse, fontSize: 13, fontWeight: '800' },
   passwordToggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 4, marginTop: 4,
@@ -427,9 +424,5 @@ const styles = StyleSheet.create({
   loginLink: { color: COLORS.primary, fontWeight: '700', fontSize: 14 },
 
   // Shared
-  btn: {
-    backgroundColor: COLORS.primary, borderRadius: 12,
-    padding: 16, alignItems: 'center', marginTop: 20,
-  },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  btn: { marginTop: 20 },
 });
