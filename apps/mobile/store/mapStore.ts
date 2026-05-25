@@ -67,6 +67,12 @@ export const useMapStore = create<MapState>((set) => ({
 
   loadParkedCar: async () => {
     const raw = await AsyncStorage.getItem(PARKED_CAR_KEY);
-    if (raw) set({ parkedLocation: JSON.parse(raw) });
+    if (raw) {
+      try {
+        set({ parkedLocation: JSON.parse(raw) });
+      } catch {
+        await AsyncStorage.removeItem(PARKED_CAR_KEY);
+      }
+    }
   },
 }));

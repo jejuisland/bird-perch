@@ -82,7 +82,7 @@ export default function VerifyOtpScreen() {
   return (
     <AuthScreenWrapper>
       <View style={styles.centeredContent}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(auth)/login')} style={styles.back}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 

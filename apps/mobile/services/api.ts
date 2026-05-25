@@ -13,7 +13,7 @@ import type {
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
 
 let _isRefreshing = false;
-let _refreshQueue: Array<(token: string) => void> = [];
+let _refreshQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
 
 apiClient.interceptors.response.use(
   (res) => res,
@@ -31,10 +31,13 @@ apiClient.interceptors.response.use(
     }
 
     if (_isRefreshing) {
-      return new Promise((resolve) => {
-        _refreshQueue.push((token) => {
-          original.headers['Authorization'] = `Bearer ${token}`;
-          resolve(apiClient(original));
+      return new Promise((resolve, reject) => {
+        _refreshQueue.push({
+          resolve: (token) => {
+            original.headers['Authorization'] = `Bearer ${token}`;
+            resolve(apiClient(original));
+          },
+          reject,
         });
       });
     }
@@ -54,12 +57,14 @@ apiClient.interceptors.response.use(
       await AsyncStorage.setItem('refreshToken', newRefresh);
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${newAccess}`;
 
-      _refreshQueue.forEach((cb) => cb(newAccess));
+      _refreshQueue.forEach(({ resolve }) => resolve(newAccess));
       _refreshQueue = [];
 
       original.headers['Authorization'] = `Bearer ${newAccess}`;
       return apiClient(original);
-    } catch {
+    } catch (refreshError) {
+      _refreshQueue.forEach(({ reject }) => reject(refreshError));
+      _refreshQueue = [];
       delete apiClient.defaults.headers.common['Authorization'];
       await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
       return Promise.reject(error);
