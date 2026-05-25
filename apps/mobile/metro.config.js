@@ -6,8 +6,9 @@ const projectRoot = __dirname;
 
 const config = getDefaultConfig(projectRoot);
 
-// Watch all files in the monorepo so Metro resolves workspace packages
-config.watchFolders = [workspaceRoot];
+// Watch all files in the monorepo AND the pnpm virtual store (C:/s),
+// which is outside the workspace root since we set virtual-store-dir=C:/s
+config.watchFolders = [workspaceRoot, 'C:/s'];
 
 // Resolve packages from both the app and monorepo root node_modules,
 // including pnpm's virtual store so symlinked deps are found correctly
