@@ -1,30 +1,11 @@
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
-/**
- * Raster map tiles.
- *
- * OpenStreetMap's volunteer tile servers (tile.openstreetmap.org) block app
- * usage — `UrlTile` can't send the identifying User-Agent their policy requires,
- * so they return 403 (osm.wiki/Blocked). We default to Carto's keyless basemap
- * CDN, which permits app/dev usage with "© OpenStreetMap contributors © CARTO"
- * attribution.
- *
- * For production, set EXPO_PUBLIC_MAP_TILE_URL to a provider with an API key, e.g.
- *   MapTiler: https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=YOUR_KEY
- *   Stadia:   https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}.png?api_key=YOUR_KEY
- */
-export const MAP_TILE_URL =
-  process.env.EXPO_PUBLIC_MAP_TILE_URL ??
-  'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
-
-/** @deprecated Kept for back-compat; use {@link MAP_TILE_URL}. */
-export const OSM_TILE_URL = MAP_TILE_URL;
 
 export const DEFAULT_REGION = {
-  latitude: 14.5547,
-  longitude: 121.0244,
-  latitudeDelta: 0.05,
-  longitudeDelta: 0.05,
+  latitude: 20,
+  longitude: 0,
+  latitudeDelta: 80,
+  longitudeDelta: 80,
 };
 
 export const SEARCH_RADIUS_METERS = 3000;

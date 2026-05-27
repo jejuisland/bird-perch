@@ -32,12 +32,14 @@ function Skeleton({ width, height = 14, style }: { width: number | string; heigh
   const opacity = React.useRef(new Animated.Value(0.35)).current;
 
   React.useEffect(() => {
-    Animated.loop(
+    const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 0.7, duration: 700, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
         Animated.timing(opacity, { toValue: 0.35, duration: 700, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
       ]),
-    ).start();
+    );
+    anim.start();
+    return () => anim.stop();
   }, []);
 
   return (

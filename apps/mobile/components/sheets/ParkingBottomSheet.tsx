@@ -139,7 +139,7 @@ function RouteCard({ distance }: { distance: number }) {
           </View>
         </View>
       </View>
-      <Text style={routeStyles.note}>Drive time estimated for Metro Manila traffic</Text>
+      <Text style={routeStyles.note}>Estimated times based on typical traffic</Text>
     </View>
   );
 }
@@ -559,7 +559,8 @@ function CostCalculatorSection({ spot }: { spot: ParkingSpot }) {
                 style={calcStyles.customSetBtn}
                 onPress={() => {
                   const hrs = parseFloat(customMinutes || '0');
-                  setDurationMinutes(Math.round(hrs * 60));
+                  const mins = Math.round((isNaN(hrs) ? 0 : hrs) * 60);
+                  setDurationMinutes(Math.max(1, mins));
                   setCustomActive(false);
                   setCustomMinutes('');
                 }}
@@ -913,6 +914,7 @@ export default function ParkingBottomSheet({ spot, userLocation, onClose }: Prop
               onChangeText={setNewComment}
               multiline
               textAlignVertical="top"
+              maxLength={500}
             />
             <GradientButton
               label="Submit Review"

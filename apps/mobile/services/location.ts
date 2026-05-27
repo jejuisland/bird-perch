@@ -50,7 +50,7 @@ export function startPassiveCollection(sid: string): () => void {
   );
 
   return () => {
-    subscription.then((sub) => sub.remove());
+    subscription.then((sub) => sub.remove()).catch(() => {});
   };
 }
 

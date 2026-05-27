@@ -38,7 +38,7 @@ export default function SearchBar({ onLocationSelect, onClear }: Props) {
     try {
       const url =
         `https://nominatim.openstreetmap.org/search` +
-        `?q=${encodeURIComponent(query)}&format=json&limit=6&countrycodes=ph&addressdetails=0`;
+        `?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=0`;
       const res = await fetch(url, {
         headers: { 'Accept-Language': 'en', 'User-Agent': 'PerchParkingApp/1.0' },
       });

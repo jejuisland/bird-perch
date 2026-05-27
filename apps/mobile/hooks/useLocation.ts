@@ -30,59 +30,62 @@ export function useLocation() {
     let watchSub: Location.LocationSubscription | null = null;
 
     (async () => {
-      const granted = await requestLocationPermission();
-      setHasPermission(granted);
+      try {
+        const granted = await requestLocationPermission();
+        setHasPermission(granted);
 
-      if (!granted) {
+        if (!granted) {
+          setLoading(false);
+          return;
+        }
+
+        // Get initial position immediately
+        const initial = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const initCoords = {
+          latitude: initial.coords.latitude,
+          longitude: initial.coords.longitude,
+        };
+        setCoords(initCoords);
+        lastCoords.current = initCoords;
+        lastUpdate.current = Date.now();
         setLoading(false);
-        return;
+
+        // Start heatmap passive collection
+        let sid = await AsyncStorage.getItem('heatmapSessionId');
+        if (!sid) {
+          sid = uuidv4();
+          await AsyncStorage.setItem('heatmapSessionId', sid);
+        }
+        stopPassive = startPassiveCollection(sid);
+
+        // Continuous position watcher — updates coords as user moves
+        watchSub = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 1_000,   // poll every 1s
+            distanceInterval: 3,   // or every 3m moved
+          },
+          (loc) => {
+            const now = Date.now();
+            const { latitude, longitude } = loc.coords;
+
+            const moved =
+              lastCoords.current
+                ? haversineMeters(lastCoords.current.latitude, lastCoords.current.longitude, latitude, longitude)
+                : 9999;
+
+            if (moved >= MIN_UPDATE_DISTANCE_M && now - lastUpdate.current >= MIN_UPDATE_INTERVAL_MS) {
+              lastCoords.current = { latitude, longitude };
+              lastUpdate.current = now;
+              setCoords({ latitude, longitude });
+            }
+          },
+        );
+      } catch {
+        setLoading(false);
       }
-
-      // Get initial position immediately
-      const initial = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const initCoords = {
-        latitude: initial.coords.latitude,
-        longitude: initial.coords.longitude,
-      };
-      setCoords(initCoords);
-      lastCoords.current = initCoords;
-      lastUpdate.current = Date.now();
-      setLoading(false);
-
-      // Start heatmap passive collection
-      let sid = await AsyncStorage.getItem('heatmapSessionId');
-      if (!sid) {
-        sid = uuidv4();
-        await AsyncStorage.setItem('heatmapSessionId', sid);
-      }
-      stopPassive = startPassiveCollection(sid);
-
-      // Continuous position watcher — updates coords as user moves
-      watchSub = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 1_000,   // poll every 1s
-          distanceInterval: 3,   // or every 3m moved
-        },
-        (loc) => {
-          const now = Date.now();
-          const { latitude, longitude } = loc.coords;
-
-          const moved =
-            lastCoords.current
-              ? haversineMeters(lastCoords.current.latitude, lastCoords.current.longitude, latitude, longitude)
-              : 9999;
-
-          // Only push a state update if moved enough AND enough time has passed
-          if (moved >= MIN_UPDATE_DISTANCE_M && now - lastUpdate.current >= MIN_UPDATE_INTERVAL_MS) {
-            lastCoords.current = { latitude, longitude };
-            lastUpdate.current = now;
-            setCoords({ latitude, longitude });
-          }
-        },
-      );
     })();
 
     return () => {

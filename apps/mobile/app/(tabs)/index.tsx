@@ -22,7 +22,7 @@ type SearchedLocation = { latitude: number; longitude: number; label: string };
 
 export default function MapScreen() {
   const { coords } = useLocation();
-  const { selectedSpot, setSelectedSpot, loadParkedCar, parkedLocation, pendingFocusSpot, setPendingFocusSpot } = useMapStore();
+  const { selectedSpot, setSelectedSpot, loadParkedCar, pendingFocusSpot, setPendingFocusSpot } = useMapStore();
   const queryClient = useQueryClient();
   const mapRef = useRef<any>(null);
   const [mapCenter, setMapCenter] = useState(coords);
@@ -58,26 +58,8 @@ export default function MapScreen() {
     setPendingFocusSpot(null);
   }, [pendingFocusSpot]);
 
-  // When user has searched a location, always fetch spots around that pin, not the scrolled map center
-  useParkingSpots(
-    searchedLocation?.latitude ?? mapCenter?.latitude ?? coords?.latitude ?? null,
-    searchedLocation?.longitude ?? mapCenter?.longitude ?? coords?.longitude ?? null,
-  );
-
-  // Auto-follow user location while navigating to a spot or back to car
-  useEffect(() => {
-    const navigating = !!selectedSpot || !!parkedLocation;
-    if (!navigating || !coords || !mapRef.current) return;
-
-    mapRef.current.animateToRegion(
-      {
-        ...coords,
-        latitudeDelta: 0.008,   // tighter zoom when navigating
-        longitudeDelta: 0.008,
-      },
-      600, // animation duration ms
-    );
-  }, [coords?.latitude, coords?.longitude]);
+  // Spots are fetched globally (all approved). GPS coords are only used for local heatmap density.
+  useParkingSpots(coords?.latitude ?? null, coords?.longitude ?? null);
 
   const handleRecenter = useCallback(() => {
     if (coords && mapRef.current) {

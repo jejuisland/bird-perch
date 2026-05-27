@@ -52,6 +52,7 @@ apiClient.interceptors.response.use(
       const { data } = await apiClient.post('/auth/refresh', { refreshToken: storedRefresh });
       const newAccess: string = data.accessToken;
       const newRefresh: string = data.refreshToken;
+      if (!newAccess || !newRefresh) throw new Error('invalid refresh response');
 
       await AsyncStorage.setItem('accessToken', newAccess);
       await AsyncStorage.setItem('refreshToken', newRefresh);
@@ -105,9 +106,8 @@ const toNumber = (v: unknown): number => (typeof v === 'number' ? v : Number(v))
 
 /**
  * Postgres `decimal`/`numeric` columns (latitude, longitude, averageRating) are
- * serialized as strings by the `pg` driver. The `ParkingSpot` type declares them
- * as numbers, and react-native-maps' Android marker rejects a string coordinate
- * ("Value for latitude cannot be cast from String to double"), so coerce here.
+ * serialized as strings by the `pg` driver. Coerce to numbers here so MapLibre
+ * and the rest of the app always receive numeric coordinates.
  */
 function normalizeSpot(s: any): ParkingSpot {
   return {
@@ -120,9 +120,14 @@ function normalizeSpot(s: any): ParkingSpot {
 }
 
 export const parkingApi = {
-  getNearby: (lat: number, lng: number, radiusMeters = 5000, openNow?: boolean) =>
+  getNearby: (lat?: number | null, lng?: number | null, radiusMeters = 5000, openNow?: boolean) =>
     apiClient
-      .get('/parking-spots', { params: { latitude: lat, longitude: lng, radiusMeters, openNow } })
+      .get('/parking-spots', {
+        params: {
+          ...(lat != null && lng != null ? { latitude: lat, longitude: lng, radiusMeters } : {}),
+          ...(openNow ? { openNow } : {}),
+        },
+      })
       .then((r) => (Array.isArray(r.data) ? r.data.map(normalizeSpot) : [])),
   getById: (id: string) => apiClient.get(`/parking-spots/${id}`).then((r) => normalizeSpot(r.data)),
   getPhotos: (spotId: string) =>

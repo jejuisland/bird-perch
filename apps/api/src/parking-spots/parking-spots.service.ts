@@ -15,39 +15,48 @@ export class ParkingSpotsService {
   ) {}
 
   // Uses Haversine formula via raw SQL — no PostGIS required for MVP.
+  // When lat/lng are absent, returns all globally approved spots (limit 500).
   async findNearby(query: NearbyQueryDto): Promise<ParkingSpotEntity[]> {
     const { latitude, longitude, radiusMeters = 5000, openNow } = query;
-    const radiusKm = radiusMeters / 1000;
 
-    const spots = await this.repo
-      .createQueryBuilder('spot')
-      .where(
-        `(
-          6371 * acos(
-            cos(radians(:lat)) * cos(radians(spot.latitude)) *
-            cos(radians(spot.longitude) - radians(:lng)) +
-            sin(radians(:lat)) * sin(radians(spot.latitude))
-          )
-        ) <= :radius`,
-        { lat: latitude, lng: longitude, radius: radiusKm },
-      )
-      // Exclude community-submitted spots still pending moderation.
-      // NULL means admin/seeded — always show.
-      .andWhere('(spot.communityVerification = :verified OR spot.communityVerification IS NULL)', { verified: 'verified' })
-      // Use parameterized values in ORDER BY to avoid raw interpolation.
-      .orderBy(
-        `(
-          6371 * acos(
-            cos(radians(:lat)) * cos(radians(spot.latitude)) *
-            cos(radians(spot.longitude) - radians(:lng)) +
-            sin(radians(:lat)) * sin(radians(spot.latitude))
-          )
-        )`,
-        'ASC',
-      )
-      .setParameters({ lat: latitude, lng: longitude, radius: radiusKm })
-      .limit(100)
-      .getMany();
+    let spots: ParkingSpotEntity[];
+
+    if (latitude == null || longitude == null) {
+      spots = await this.repo
+        .createQueryBuilder('spot')
+        .where('(spot.communityVerification = :verified OR spot.communityVerification IS NULL)', { verified: 'verified' })
+        .orderBy('spot.createdAt', 'DESC')
+        .limit(500)
+        .getMany();
+    } else {
+      const radiusKm = radiusMeters / 1000;
+      spots = await this.repo
+        .createQueryBuilder('spot')
+        .where(
+          `(
+            6371 * acos(
+              cos(radians(:lat)) * cos(radians(spot.latitude)) *
+              cos(radians(spot.longitude) - radians(:lng)) +
+              sin(radians(:lat)) * sin(radians(spot.latitude))
+            )
+          ) <= :radius`,
+          { lat: latitude, lng: longitude, radius: radiusKm },
+        )
+        .andWhere('(spot.communityVerification = :verified OR spot.communityVerification IS NULL)', { verified: 'verified' })
+        .orderBy(
+          `(
+            6371 * acos(
+              cos(radians(:lat)) * cos(radians(spot.latitude)) *
+              cos(radians(spot.longitude) - radians(:lng)) +
+              sin(radians(:lat)) * sin(radians(spot.latitude))
+            )
+          )`,
+          'ASC',
+        )
+        .setParameters({ lat: latitude, lng: longitude, radius: radiusKm })
+        .limit(100)
+        .getMany();
+    }
 
     if (!openNow) return spots;
     return spots.filter((s) => this.isCurrentlyOpen(s.operatingHours));

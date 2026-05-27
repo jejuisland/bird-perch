@@ -4,12 +4,12 @@ import { parkingApi, heatmapApi } from '../services/api';
 import { useMapStore } from '../store/mapStore';
 
 export function useParkingSpots(lat: number | null, lng: number | null) {
-  const { setParkingSpots, setHeatmapPoints, openNow, radiusMeters } = useMapStore();
+  const { setParkingSpots, setHeatmapPoints, openNow } = useMapStore();
 
+  // Always fetch all globally-approved spots — no lat/lng gate.
   const spotsQuery = useQuery({
-    queryKey: ['parking-spots', lat, lng, openNow, radiusMeters],
-    queryFn: () => parkingApi.getNearby(lat!, lng!, radiusMeters, openNow || undefined),
-    enabled: lat !== null && lng !== null,
+    queryKey: ['parking-spots', openNow],
+    queryFn: () => parkingApi.getNearby(null, null, undefined, openNow || undefined),
     staleTime: 60_000,
   });
 

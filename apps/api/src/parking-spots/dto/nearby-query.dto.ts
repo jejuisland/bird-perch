@@ -2,13 +2,15 @@ import { IsNumber, IsOptional, IsBoolean, Min, Max } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 export class NearbyQueryDto {
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  latitude: number;
+  latitude?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  longitude: number;
+  longitude?: number;
 
   @IsOptional()
   @Type(() => Number)

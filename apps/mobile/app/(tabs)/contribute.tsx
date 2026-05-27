@@ -17,12 +17,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { COLORS, GRADIENTS, SHADOWS, OSM_TILE_URL } from '../../constants';
+import { COLORS, GRADIENTS, SHADOWS } from '../../constants';
 import { useLocation } from '../../hooks/useLocation';
 import {
   communityParkingApi,
@@ -311,10 +311,12 @@ function LocationStep({
 
   useEffect(() => {
     if (userCoord && !pinCoord) {
-      mapRef.current?.animateToRegion(
-        { ...userCoord, latitudeDelta: 0.003, longitudeDelta: 0.003 },
-        700,
-      );
+      mapRef.current?.animateToRegion({
+        latitude: userCoord.latitude,
+        longitude: userCoord.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      }, 700);
     }
   }, [userCoord]);
 
@@ -342,23 +344,26 @@ function LocationStep({
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
-        mapType="none"
+        provider={PROVIDER_GOOGLE}
         initialRegion={{
           latitude: userCoord?.latitude ?? 14.5547,
           longitude: userCoord?.longitude ?? 121.0244,
-          latitudeDelta: 0.006,
-          longitudeDelta: 0.006,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
         }}
         showsUserLocation
         showsMyLocationButton={false}
-        onPress={(e) => setPinCoord(e.nativeEvent.coordinate)}
+        rotateEnabled={false}
+        onPress={(e) => {
+          const { coordinate } = e.nativeEvent;
+          setPinCoord({ latitude: coordinate.latitude, longitude: coordinate.longitude });
+        }}
       >
-        <UrlTile urlTemplate={OSM_TILE_URL} maximumZ={19} flipY={false} />
         {pinCoord && (
           <Marker
             coordinate={pinCoord}
-            draggable
-            onDragEnd={(e) => setPinCoord(e.nativeEvent.coordinate)}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
           >
             <View style={ls.pinOuter}>
               <View style={ls.pinInner} />
@@ -1599,23 +1604,26 @@ function ConfirmStep({
         <Text style={cs.subline}>Review your spot before submitting to the community.</Text>
 
         {/* Mini map */}
-        <View style={cs.mapWrap}>
+        <View style={cs.mapWrap} pointerEvents="none">
           <MapView
             style={cs.map}
-            mapType="none"
-            region={{
-              ...pinCoord,
-              latitudeDelta: 0.003,
-              longitudeDelta: 0.003,
+            provider={PROVIDER_GOOGLE}
+            initialRegion={{
+              latitude: pinCoord.latitude,
+              longitude: pinCoord.longitude,
+              latitudeDelta: 0.004,
+              longitudeDelta: 0.004,
             }}
-            scrollEnabled={false}
-            zoomEnabled={false}
-            pitchEnabled={false}
             rotateEnabled={false}
-            pointerEvents="none"
+            zoomEnabled={false}
+            scrollEnabled={false}
+            pitchEnabled={false}
           >
-            <UrlTile urlTemplate={OSM_TILE_URL} maximumZ={19} flipY={false} />
-            <Marker coordinate={pinCoord}>
+            <Marker
+              coordinate={{ latitude: pinCoord.latitude, longitude: pinCoord.longitude }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
               <View style={ls.pinOuter}>
                 <View style={ls.pinInner} />
               </View>
