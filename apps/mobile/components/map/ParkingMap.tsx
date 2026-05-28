@@ -1,13 +1,11 @@
 import React, { forwardRef, useState, useEffect, useRef, useImperativeHandle, useMemo } from 'react';
-import { StyleSheet, View, Text, Image } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline, Circle } from 'react-native-maps';
 import { ParkingSpot } from '@perch/shared';
 import { useMapStore } from '../../store/mapStore';
 import { DEFAULT_REGION, COLORS } from '../../constants';
 import HeatmapLayer from './HeatmapLayer';
-
-const PIN_LOGO = require('../../assets/logo.png');
-const PIN_UNVERIFIED = require('../../assets/pin-marker-unverified.png');
+import OwlPinMarker from './OwlPinMarker';
 
 type Coord = { latitude: number; longitude: number };
 
@@ -44,40 +42,35 @@ async function fetchOsrmRoute(
   };
 }
 
-// Google Maps SDK on Android captures a bitmap of the marker's View children.
-// tracksViewChanges=true means it recaptures every frame (expensive but necessary until image is drawn).
-// We flip to false only after onLoad fires (image pixels are decoded + painted to the surface).
-// A 500ms timeout acts as a safety net in case onLoad is delayed.
+// SVG renders synchronously — recapture the bitmap briefly whenever isSelected changes.
 const SpotMarker = React.memo(function SpotMarker({
   spot,
   onPress,
+  isSelected,
 }: {
   spot: ParkingSpot;
   onPress: (s: ParkingSpot) => void;
+  isSelected: boolean;
 }) {
-  const [tracksViewChanges, setTracksViewChanges] = useState(true);
+  const [tracks, setTracks] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setTracksViewChanges(false), 500);
+    setTracks(true);
+    const t = setTimeout(() => setTracks(false), 200);
     return () => clearTimeout(t);
-  }, []);
+  }, [isSelected]);
 
   return (
     <Marker
       coordinate={{ latitude: Number(spot.latitude), longitude: Number(spot.longitude) }}
       onPress={() => onPress(spot)}
-      tracksViewChanges={tracksViewChanges}
-      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={tracks}
+      anchor={{ x: 0.5, y: 1.0 }}
     >
-      <View style={styles.markerWrap}>
-        <Image
-          source={spot.communityVerification === 'unverified' ? PIN_UNVERIFIED : PIN_LOGO}
-          style={styles.markerImage}
-          resizeMode="contain"
-          fadeDuration={0}
-          onLoad={() => setTracksViewChanges(false)}
-        />
-      </View>
+      <OwlPinMarker
+        selected={isSelected}
+        verified={spot.communityVerification !== 'unverified'}
+      />
     </Marker>
   );
 });
@@ -273,7 +266,12 @@ const ParkingMap = forwardRef<MapHandle, Props>(
 
         {/* Parking spot markers */}
         {filteredSpots.map((spot) => (
-          <SpotMarker key={spot.id} spot={spot} onPress={onMarkerPress} />
+          <SpotMarker
+            key={spot.id}
+            spot={spot}
+            onPress={onMarkerPress}
+            isSelected={spot.id === selectedSpot?.id}
+          />
         ))}
 
         {/* Heatmap overlay */}
@@ -374,8 +372,6 @@ ParkingMap.displayName = 'ParkingMap';
 export default ParkingMap;
 
 const styles = StyleSheet.create({
-  markerWrap: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  markerImage: { width: 44, height: 44 },
   carIcon: { fontSize: 28 },
 });
 

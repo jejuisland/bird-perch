@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Alert, Linking, Platform, Share, Modal,
+  TextInput, Alert, Linking, Platform, Share, Modal, Image, Animated,
 } from 'react-native';
+import { useAds } from '../../hooks/useAds';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -273,20 +274,66 @@ function FacilitiesRow({ facilities }: { facilities: string[] }) {
 }
 
 function InlineAd() {
+  const { ads, currentAd, currentIndex, setCurrentIndex } = useAds();
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const animRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    animRef.current?.stop();
+    progressAnim.setValue(0);
+    if (!currentAd) return;
+    animRef.current = Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: currentAd.durationSeconds * 1000,
+      useNativeDriver: false,
+    });
+    animRef.current.start();
+  }, [currentIndex, currentAd?.id]);
+
+  if (!currentAd) return null;
+
+  const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+
   return (
     <View style={adStyles.container}>
       <Text style={adStyles.sectionHeader}>Check out before parking</Text>
-      <TouchableOpacity style={adStyles.card} activeOpacity={0.9}>
-        <View style={adStyles.imageBg}>
-          <Ionicons name="car" size={40} color="rgba(255,255,255,0.7)" />
-          <Text style={adStyles.imageCopy}>Get your car washed{'\n'}while you're parked!</Text>
-        </View>
+      <TouchableOpacity
+        style={adStyles.card}
+        activeOpacity={0.9}
+        onPress={() => currentAd.targetUrl && Linking.openURL(currentAd.targetUrl).catch(() => {})}
+      >
+        {/* Ad image */}
+        <Image source={{ uri: currentAd.contentUrl }} style={adStyles.adImage} resizeMode="cover" />
+
+        {/* Footer */}
         <View style={adStyles.footer}>
           <View style={{ flex: 1 }}>
-            <Text style={adStyles.adTitle}>SparkleClean BGC</Text>
-            <Text style={adStyles.adMeta}>Ad · SparkleClean Inc.</Text>
+            <Text style={adStyles.adTitle} numberOfLines={1}>{currentAd.title}</Text>
+            <Text style={adStyles.adMeta}>
+              Ad{currentAd.advertiserName ? ` · ${currentAd.advertiserName}` : ''}
+            </Text>
           </View>
-          <Text style={adStyles.learnMore}>Learn more →</Text>
+
+          <View style={adStyles.footerRight}>
+            {ads.length > 1 && (
+              <View style={adStyles.dots}>
+                {ads.map((_, i) => (
+                  <TouchableOpacity key={i} onPress={() => setCurrentIndex(i)}
+                    hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                    <View style={[adStyles.dot, i === currentIndex && adStyles.dotActive]} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {currentAd.targetUrl ? (
+              <Text style={adStyles.learnMore}>Learn more →</Text>
+            ) : null}
+          </View>
+        </View>
+
+        {/* Progress bar */}
+        <View style={adStyles.progressTrack}>
+          <Animated.View style={[adStyles.progressFill, { width: progressWidth }]} />
         </View>
       </TouchableOpacity>
     </View>
@@ -1294,25 +1341,28 @@ const calcStyles = StyleSheet.create({
 
 const adStyles = StyleSheet.create({
   container: { marginBottom: 24 },
-  sectionHeader: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.6 },
+  sectionHeader: {
+    fontSize: 13, fontWeight: '700', color: COLORS.textSecondary,
+    marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.6,
+  },
   card: {
     borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
   },
-  imageBg: {
-    height: 110,
-    // Intentional deep-blue ad placeholder (blue-900) — a sample sponsor surface
-    // outside the core scheme; light-blue copy sits on top for contrast.
-    backgroundColor: '#1E3A8A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+  adImage: {
+    width: '100%',
+    height: 130,
+    backgroundColor: COLORS.surface,
   },
-
-  imageCopy: { fontSize: 13, color: COLORS.infoBorder, textAlign: 'center', lineHeight: 18 },
   footer: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
+  footerRight: { alignItems: 'flex-end', gap: 4 },
   adTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   adMeta: { fontSize: 11, color: COLORS.textSecondary, marginTop: 1 },
-  learnMore: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
+  learnMore: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
+  dots: { flexDirection: 'row', gap: 4 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.border },
+  dotActive: { width: 12, backgroundColor: COLORS.primary },
+  progressTrack: { height: 2, backgroundColor: COLORS.border, overflow: 'hidden' },
+  progressFill: { height: 2, backgroundColor: COLORS.primary },
 });

@@ -11,6 +11,7 @@ import { HeatmapModule } from './heatmap/heatmap.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { CommunityModule } from './community/community.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { AdsModule } from './ads/ads.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { UploadsModule } from './uploads/uploads.module';
     AnalyticsModule,
     CommunityModule,
     UploadsModule,
+    AdsModule,
   ],
   providers: [
     // Activate the throttler for every route in the application.

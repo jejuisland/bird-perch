@@ -208,3 +208,20 @@ export const analyticsApi = {
   track: (data: { eventType: string; sessionId: string; metadata?: Record<string, unknown> }) =>
     apiClient.post('/analytics/events', data).catch(() => {}),
 };
+
+export interface Ad {
+  id: string;
+  title: string;
+  advertiserName: string | null;
+  type: 'image' | 'gif';
+  contentUrl: string;
+  targetUrl: string | null;
+  isActive: boolean;
+  durationSeconds: number;
+  displayOrder: number;
+}
+
+export const adsApi = {
+  getActive: (): Promise<Ad[]> =>
+    apiClient.get('/ads/active').then((r) => (Array.isArray(r.data) ? r.data : [])),
+};
