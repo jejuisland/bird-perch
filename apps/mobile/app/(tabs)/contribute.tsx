@@ -2304,6 +2304,9 @@ function QueueCard({
 function ModerationSection() {
   const [page, setPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<ModerationQueueItem | null>(null);
+
+  // Reset to page 1 whenever this section mounts (tab re-focused or wizard closed).
+  useEffect(() => { setPage(1); }, []);
   const [votingApprove, setVotingApprove] = useState(false);
   const [votingReject, setVotingReject] = useState(false);
 

@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useEffect, useLayoutEffect, useRef, useImperativeHandle, useMemo } from 'react';
+import React, { forwardRef, useState, useEffect, useRef, useImperativeHandle, useMemo } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline, Circle } from 'react-native-maps';
 import { ParkingSpot } from '@perch/shared';
@@ -42,10 +42,12 @@ async function fetchOsrmRoute(
   };
 }
 
-// useLayoutEffect fires in the same commit batch as the render that changed isSelected,
-// so setTracks(true) and the SVG update reach native together — no race window.
-// tracksViewChanges={isSelected || tracks}: selected markers always track (instant open-eyes),
-// deselecting markers track briefly (captures correct closed-eyes bitmap), then stop.
+// Key-based remount: when isSelected flips the parent passes a new key, so this
+// component unmounts and remounts fresh. useState(true) means tracksViewChanges
+// starts as true on every mount — Android captures the correct SVG bitmap on the
+// very first frame, with no race between the prop change and the effect firing.
+// After 500 ms the bitmap is frozen; tracksViewChanges stays false until the next
+// selection change causes another remount.
 const SpotMarker = React.memo(function SpotMarker({
   spot,
   onPress,
@@ -56,22 +58,17 @@ const SpotMarker = React.memo(function SpotMarker({
   isSelected: boolean;
 }) {
   const [tracks, setTracks] = useState(true);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useLayoutEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setTracks(true);
-    timerRef.current = setTimeout(() => setTracks(false), 500);
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [isSelected]);
+  useEffect(() => {
+    const t = setTimeout(() => setTracks(false), 500);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <Marker
       coordinate={{ latitude: Number(spot.latitude), longitude: Number(spot.longitude) }}
       onPress={() => onPress(spot)}
-      tracksViewChanges={isSelected || tracks}
+      tracksViewChanges={tracks}
       anchor={{ x: 0.5, y: 1.0 }}
     >
       <OwlPinMarker
@@ -272,14 +269,17 @@ const ParkingMap = forwardRef<MapHandle, Props>(
         )}
 
         {/* Parking spot markers */}
-        {filteredSpots.map((spot) => (
-          <SpotMarker
-            key={spot.id}
-            spot={spot}
-            onPress={onMarkerPress}
-            isSelected={spot.id === selectedSpot?.id}
-          />
-        ))}
+        {filteredSpots.map((spot) => {
+          const isSelected = spot.id === selectedSpot?.id;
+          return (
+            <SpotMarker
+              key={`${spot.id}-${isSelected ? 'sel' : 'unsel'}`}
+              spot={spot}
+              onPress={onMarkerPress}
+              isSelected={isSelected}
+            />
+          );
+        })}
 
         {/* Heatmap overlay */}
         {heatmapEnabled && <HeatmapLayer />}
