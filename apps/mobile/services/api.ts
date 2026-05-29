@@ -213,7 +213,7 @@ export interface Ad {
   id: string;
   title: string;
   advertiserName: string | null;
-  type: 'image' | 'gif';
+  type: 'image' | 'gif' | 'video';
   contentUrl: string;
   targetUrl: string | null;
   isActive: boolean;

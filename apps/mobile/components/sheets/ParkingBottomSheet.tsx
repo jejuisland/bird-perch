@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, Alert, Linking, Platform, Share, Modal, Image, Animated,
 } from 'react-native';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { useAds } from '../../hooks/useAds';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -273,6 +274,22 @@ function FacilitiesRow({ facilities }: { facilities: string[] }) {
   );
 }
 
+function VideoAdPlayer({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = false;
+    p.play();
+  });
+  return (
+    <VideoView
+      player={player}
+      style={adStyles.adImage}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
+}
+
 function InlineAd() {
   const { ads, currentAd, currentIndex, setCurrentIndex } = useAds();
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -302,8 +319,12 @@ function InlineAd() {
         activeOpacity={0.9}
         onPress={() => currentAd.targetUrl && Linking.openURL(currentAd.targetUrl).catch(() => {})}
       >
-        {/* Ad image */}
-        <Image source={{ uri: currentAd.contentUrl }} style={adStyles.adImage} resizeMode="cover" />
+        {/* Ad media */}
+        {currentAd.type === 'video' ? (
+          <VideoAdPlayer uri={currentAd.contentUrl} />
+        ) : (
+          <Image source={{ uri: currentAd.contentUrl }} style={adStyles.adImage} resizeMode="cover" />
+        )}
 
         {/* Footer */}
         <View style={adStyles.footer}>

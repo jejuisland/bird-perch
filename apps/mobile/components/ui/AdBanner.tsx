@@ -3,8 +3,35 @@ import {
   View, Text, Image, TouchableOpacity,
   StyleSheet, Animated, Linking,
 } from 'react-native';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { useAds } from '../../hooks/useAds';
 import { COLORS } from '../../constants';
+
+// Small muted autoplay video thumbnail for the banner strip.
+function VideoThumbnail({ uri, isActive }: { uri: string; isActive: boolean }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+
+  useEffect(() => {
+    if (isActive) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isActive]);
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.thumbnail}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
+}
 
 export default function AdBanner() {
   const { ads, currentAd, currentIndex, setCurrentIndex } = useAds();
@@ -41,7 +68,11 @@ export default function AdBanner() {
       {/* Ad content row */}
       <TouchableOpacity style={styles.row} activeOpacity={0.88} onPress={handleTap}>
         {/* Thumbnail */}
-        <Image source={{ uri: currentAd.contentUrl }} style={styles.thumbnail} resizeMode="cover" />
+        {currentAd.type === 'video' ? (
+          <VideoThumbnail uri={currentAd.contentUrl} isActive />
+        ) : (
+          <Image source={{ uri: currentAd.contentUrl }} style={styles.thumbnail} resizeMode="cover" />
+        )}
 
         {/* Copy */}
         <View style={styles.copy}>
