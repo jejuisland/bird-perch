@@ -80,7 +80,7 @@ export default function MapScreen() {
         onRegionChangeComplete={(region) =>
           setMapCenter({ latitude: region.latitude, longitude: region.longitude })
         }
-        onMarkerPress={(spot) => { setSelectedSpot(spot); setIsSheetOpen(true); }}
+        onMarkerPress={(spot) => { setSelectedSpot(spot); setIsSheetOpen(true); setRouteInfo(null); }}
         onRouteUpdate={(info) => setRouteInfo(info)}
         onReroutingChange={(v) => setIsRerouting(v)}
       />
@@ -131,7 +131,7 @@ export default function MapScreen() {
       <ParkingBottomSheet
         spot={isSheetOpen ? selectedSpot : null}
         userLocation={coords}
-        onClose={() => setIsSheetOpen(false)}
+        onClose={() => { setIsSheetOpen(false); setSelectedSpot(null); setRouteInfo(null); }}
       />
     </View>
   );

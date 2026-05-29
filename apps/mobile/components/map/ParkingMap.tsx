@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useEffect, useRef, useImperativeHandle, useMemo } from 'react';
+import React, { forwardRef, useState, useEffect, useLayoutEffect, useRef, useImperativeHandle, useMemo } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline, Circle } from 'react-native-maps';
 import { ParkingSpot } from '@perch/shared';
@@ -42,7 +42,10 @@ async function fetchOsrmRoute(
   };
 }
 
-// SVG renders synchronously — recapture the bitmap briefly whenever isSelected changes.
+// useLayoutEffect fires in the same commit batch as the render that changed isSelected,
+// so setTracks(true) and the SVG update reach native together — no race window.
+// tracksViewChanges={isSelected || tracks}: selected markers always track (instant open-eyes),
+// deselecting markers track briefly (captures correct closed-eyes bitmap), then stop.
 const SpotMarker = React.memo(function SpotMarker({
   spot,
   onPress,
@@ -53,18 +56,22 @@ const SpotMarker = React.memo(function SpotMarker({
   isSelected: boolean;
 }) {
   const [tracks, setTracks] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     setTracks(true);
-    const t = setTimeout(() => setTracks(false), 200);
-    return () => clearTimeout(t);
+    timerRef.current = setTimeout(() => setTracks(false), 500);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [isSelected]);
 
   return (
     <Marker
       coordinate={{ latitude: Number(spot.latitude), longitude: Number(spot.longitude) }}
       onPress={() => onPress(spot)}
-      tracksViewChanges={tracks}
+      tracksViewChanges={isSelected || tracks}
       anchor={{ x: 0.5, y: 1.0 }}
     >
       <OwlPinMarker
