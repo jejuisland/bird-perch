@@ -5,14 +5,17 @@ import { Repository } from 'typeorm';
 import { ReviewEntity } from '../reviews/review.entity';
 import { ParkingSpotPhotoEntity } from './entities/parking-spot-photo.entity';
 import { ContributorStatsEntity } from './entities/contributor-stats.entity';
+import { ContributorTier } from '@perch/shared';
 
 // Contribution point values.
 const POINTS_REVIEW = 2;
 const POINTS_PHOTO = 3;
 
-// Tier promotion thresholds (contribution points).
-const TIER_HAWK_THRESHOLD = 50;
-const TIER_EAGLE_THRESHOLD = 200;
+function tierFromPoints(points: number): ContributorTier {
+  if (points >= 200) return 'eagle';
+  if (points >= 50)  return 'hawk';
+  return 'pigeon';
+}
 
 @Injectable()
 export class AcceptanceScheduler {
@@ -83,12 +86,7 @@ export class AcceptanceScheduler {
       if (kind === 'review') stats.acceptedReviewsCount = (stats.acceptedReviewsCount ?? 0) + count;
       else stats.acceptedPhotosCount = (stats.acceptedPhotosCount ?? 0) + count;
 
-      // Promote tier based on cumulative points.
-      if (stats.tier === 'pigeon' && stats.contributionPoints >= TIER_HAWK_THRESHOLD) {
-        stats.tier = 'hawk';
-      } else if (stats.tier === 'hawk' && stats.contributionPoints >= TIER_EAGLE_THRESHOLD) {
-        stats.tier = 'eagle';
-      }
+      stats.tier = tierFromPoints(stats.contributionPoints);
 
       await this.statsRepo.save(stats);
     }

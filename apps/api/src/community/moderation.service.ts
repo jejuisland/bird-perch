@@ -7,6 +7,14 @@ import { ModerationVoteEntity } from './entities/moderation-vote.entity';
 import { ParkingSpotEntity } from '../parking-spots/parking-spot.entity';
 import { ParkingSpotPhotoEntity } from './entities/parking-spot-photo.entity';
 
+import { ContributorTier } from '@perch/shared';
+
+function tierFromPoints(points: number): ContributorTier {
+  if (points >= 200) return 'eagle';
+  if (points >= 50)  return 'hawk';
+  return 'pigeon';
+}
+
 function tierWeight(tier: 'pigeon' | 'hawk' | 'eagle'): number {
   if (tier === 'hawk') return 2;
   if (tier === 'eagle') return 3;
@@ -136,12 +144,7 @@ export class ModerationService {
               submitterStats.contributionPoints += POINTS_SPOT_VERIFIED;
               submitterStats.verifiedPlacesCount += 1;
               submitterStats.lastContributionAt = new Date();
-              // Promote tier if thresholds crossed.
-              if (submitterStats.tier === 'pigeon' && submitterStats.contributionPoints >= 50) {
-                submitterStats.tier = 'hawk';
-              } else if (submitterStats.tier === 'hawk' && submitterStats.contributionPoints >= 200) {
-                submitterStats.tier = 'eagle';
-              }
+              submitterStats.tier = tierFromPoints(submitterStats.contributionPoints);
               await em.save(submitterStats);
             }
           } else {
@@ -217,8 +220,7 @@ export class ModerationService {
       if (thisVote?.isCorrect) {
         s.contributionPoints += POINTS_CORRECT_VOTE;
         s.lastContributionAt = new Date();
-        if (s.tier === 'pigeon' && s.contributionPoints >= 50) s.tier = 'hawk';
-        else if (s.tier === 'hawk' && s.contributionPoints >= 200) s.tier = 'eagle';
+        s.tier = tierFromPoints(s.contributionPoints);
       }
 
       await this.statsRepo.save(s);
