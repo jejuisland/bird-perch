@@ -20,6 +20,7 @@ import {
   COLORS,
   TIER_COLORS,
   TIER_THRESHOLDS,
+  tierFromPoints,
   tierProgress,
   nextTier,
   type TierName,
@@ -766,7 +767,7 @@ export default function ProfileScreen() {
           </View>
         ) : (
           <TierCard
-            tier={stats?.tier ?? 'pigeon'}
+            tier={tierFromPoints(stats?.contributionPoints ?? 0)}
             points={stats?.contributionPoints ?? 0}
             accuracy={stats?.moderationAccuracy ?? null}
             verifiedSpots={stats?.verifiedPlacesCount ?? 0}

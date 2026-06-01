@@ -157,6 +157,12 @@ export const TIER_THRESHOLDS = {
 
 export type TierName = keyof typeof TIER_THRESHOLDS;
 
+export function tierFromPoints(points: number): TierName {
+  if (points >= TIER_THRESHOLDS.eagle) return 'eagle';
+  if (points >= TIER_THRESHOLDS.hawk)  return 'hawk';
+  return 'pigeon';
+}
+
 export function nextTier(current: TierName): TierName | null {
   if (current === 'pigeon') return 'hawk';
   if (current === 'hawk') return 'eagle';
