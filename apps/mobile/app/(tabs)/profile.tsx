@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   RefreshControl,
   Animated,
   Easing,
+  Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -49,76 +51,219 @@ function Skeleton({ width, height = 14, style }: { width: number | string; heigh
   );
 }
 
+// ─── Tier images & metadata ───────────────────────────────────────────────────
+
+const TIER_IMAGES: Record<string, ReturnType<typeof require>> = {
+  pigeon: require('../../assets/pigeon.png'),
+  hawk:   require('../../assets/hawk.png'),
+  eagle:  require('../../assets/eagle.png'),
+};
+
+const TIER_META: Record<string, {
+  label: string; subtitle: string;
+  gradient: readonly [string, string, string];
+  glowColor: string; perks: readonly [string, string];
+}> = {
+  pigeon: {
+    label: 'Pigeon', subtitle: 'City Spotter',
+    gradient: ['#E8ECF2', '#F1F5F9', '#FFFFFF'],
+    glowColor: '#94A3B8',
+    perks: ['200m radius', '×1 vote'],
+  },
+  hawk: {
+    label: 'Hawk', subtitle: 'Trusted Scout',
+    gradient: ['#DBEAFE', '#EFF6FF', '#FFFFFF'],
+    glowColor: '#3B82F6',
+    perks: ['500m radius', '×2 votes'],
+  },
+  eagle: {
+    label: 'Eagle', subtitle: 'Master Navigator',
+    gradient: ['#FEF3C7', '#FFFBEB', '#FFFFFF'],
+    glowColor: '#F59E0B',
+    perks: ['Unlimited radius', '×3 votes'],
+  },
+};
+
+const TIER_ORDER: Record<TierName, number> = { pigeon: 0, hawk: 1, eagle: 2 };
+const TIERS: TierName[] = ['pigeon', 'hawk', 'eagle'];
+
 // ─── Tier Card ────────────────────────────────────────────────────────────────
 
 function TierCard({ tier, points, accuracy, verifiedSpots, acceptedReviews, streakDays }: {
-  tier: string;
-  points: number;
-  accuracy: number | null;
-  verifiedSpots: number;
-  acceptedReviews: number;
-  streakDays: number | null;
+  tier: string; points: number; accuracy: number | null;
+  verifiedSpots: number; acceptedReviews: number; streakDays: number | null;
 }) {
-  const tierKey = (tier ?? 'pigeon') as TierName;
-  const tc = TIER_COLORS[tierKey] ?? TIER_COLORS.pigeon;
-  const next = nextTier(tierKey);
-  const progress = tierProgress(points, tierKey);
-  const nextLabel = next ? next.charAt(0).toUpperCase() + next.slice(1) : null;
-  const nextThreshold = next ? TIER_THRESHOLDS[next] : null;
-  const pointsToNext = nextThreshold ? nextThreshold - points : null;
+  const tierKey  = (tier ?? 'pigeon') as TierName;
+  const meta     = TIER_META[tierKey] ?? TIER_META.pigeon;
+  const tc       = TIER_COLORS[tierKey] ?? TIER_COLORS.pigeon;
+  const next     = nextTier(tierKey);
+  const prog     = tierProgress(points, tierKey);
+  const nextLabel    = next ? next.charAt(0).toUpperCase() + next.slice(1) : null;
+  const pointsToNext = next ? TIER_THRESHOLDS[next] - points : null;
+
+  const float     = useRef(new Animated.Value(0)).current;
+  const glowScale = useRef(new Animated.Value(1)).current;
+  const glowAlpha = useRef(new Animated.Value(0.45)).current;
+  const shimmerX  = useRef(new Animated.Value(-120)).current;
+  const barWidth  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    float.setValue(0);
+    glowScale.setValue(1);
+    glowAlpha.setValue(0.45);
+    shimmerX.setValue(-120);
+    barWidth.setValue(0);
+
+    const floatA = Animated.loop(
+      Animated.sequence([
+        Animated.timing(float,     { toValue: -9,  duration: 1900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(float,     { toValue: 0,   duration: 1900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    const glowA = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(glowScale, { toValue: 1.24, duration: 1600, useNativeDriver: true }),
+          Animated.timing(glowAlpha, { toValue: 0.10, duration: 1600, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(glowScale, { toValue: 1.0,  duration: 1600, useNativeDriver: true }),
+          Animated.timing(glowAlpha, { toValue: 0.45, duration: 1600, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    const shimA = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerX, { toValue: 360, duration: 1000, easing: Easing.linear, useNativeDriver: true }),
+        Animated.delay(3400),
+        Animated.timing(shimmerX, { toValue: -120, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    const barA = Animated.timing(barWidth, {
+      toValue: prog, duration: 1100, delay: 350,
+      easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    });
+
+    floatA.start(); glowA.start(); shimA.start(); barA.start();
+    return () => { floatA.stop(); glowA.stop(); shimA.stop(); barA.stop(); };
+  }, [tierKey]);
 
   return (
     <View style={tc_s.card}>
-      {/* Badge row: tier pill (left) + points (right) */}
-      <View style={tc_s.topRow}>
-        <View style={[tc_s.badge, { backgroundColor: tc.bg, borderColor: tc.border }]}>
-          <Text style={[tc_s.badgeText, { color: tc.text }]}>{tierKey.toUpperCase()}</Text>
-        </View>
-        <View style={tc_s.pointsWrap}>
-          <Text style={tc_s.pointsNum}>{points.toLocaleString()}</Text>
-          <Text style={tc_s.pointsLabel}>pts</Text>
-        </View>
-      </View>
+      {/* ── Gradient hero ── */}
+      <LinearGradient colors={meta.gradient as any} style={tc_s.hero}>
+        {/* Shimmer sweep */}
+        <Animated.View style={[tc_s.shimmerStripe, { transform: [{ translateX: shimmerX }] }]} />
 
-      {/* Progress */}
-      <View style={tc_s.progressSection}>
-        <View style={tc_s.progressTrack}>
-          <View style={[tc_s.progressFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: tc.text }]} />
+        {/* Floating bird + glow ring */}
+        <View style={tc_s.birdWrap}>
+          <Animated.View
+            style={[tc_s.glowRing, {
+              backgroundColor: meta.glowColor,
+              transform: [{ scale: glowScale }],
+              opacity: glowAlpha,
+            }]}
+          />
+          <Animated.Image
+            source={TIER_IMAGES[tierKey]}
+            style={[tc_s.birdImg, { transform: [{ translateY: float }] }]}
+          />
         </View>
-        <View style={tc_s.progressMeta}>
-          {nextLabel && pointsToNext != null ? (
-            <Text style={tc_s.progressLabel}>
-              {pointsToNext > 0 ? `${pointsToNext} pts to ${nextLabel}` : `${nextLabel} unlocked!`}
-            </Text>
-          ) : (
-            <Text style={tc_s.progressLabel}>Max tier · Eagle</Text>
-          )}
-          {streakDays != null && streakDays > 0 && (
-            <View style={tc_s.streakPill}>
-              <Ionicons name="flame" size={11} color={COLORS.warning} />
-              <Text style={tc_s.streakText}>{streakDays}d</Text>
+
+        {/* Tier name + subtitle */}
+        <Text style={[tc_s.tierName, { color: tc.text }]}>{meta.label.toUpperCase()}</Text>
+        <Text style={tc_s.tierSub}>{meta.subtitle}</Text>
+
+        {/* Perk pills */}
+        <View style={tc_s.perksRow}>
+          {meta.perks.map((p, i) => (
+            <View key={i} style={[tc_s.perkPill, { backgroundColor: tc.bg, borderColor: tc.border }]}>
+              <Text style={[tc_s.perkText, { color: tc.text }]}>{p}</Text>
             </View>
-          )}
+          ))}
         </View>
-      </View>
+      </LinearGradient>
 
-      {/* 3-stat row */}
-      <View style={tc_s.statsRow}>
-        <View style={tc_s.statCell}>
-          <Text style={tc_s.statValue}>{verifiedSpots}</Text>
-          <Text style={tc_s.statLabel}>Verified</Text>
+      {/* ── Lower section ── */}
+      <View style={tc_s.lower}>
+        {/* Tier road */}
+        <View style={tc_s.roadRow}>
+          {TIERS.map((t, i) => {
+            const unlocked  = TIER_ORDER[t] <= TIER_ORDER[tierKey];
+            const isCurrent = t === tierKey;
+            return (
+              <React.Fragment key={t}>
+                {i > 0 && (
+                  <View style={[tc_s.roadLine, unlocked && { backgroundColor: tc.text + 'AA' }]} />
+                )}
+                <View style={[tc_s.roadDot, isCurrent && { borderColor: tc.text, borderWidth: 2.5 }]}>
+                  <Image
+                    source={TIER_IMAGES[t]}
+                    style={[tc_s.roadImg, !unlocked && { opacity: 0.25 }]}
+                  />
+                </View>
+              </React.Fragment>
+            );
+          })}
         </View>
-        <View style={tc_s.statDivider} />
-        <View style={tc_s.statCell}>
-          <Text style={tc_s.statValue}>
-            {accuracy != null ? `${Math.round(accuracy * 100)}%` : '—'}
+        <View style={tc_s.roadLabels}>
+          {TIERS.map((t) => (
+            <Text
+              key={t}
+              style={[tc_s.roadLabel, t === tierKey && { color: tc.text, fontWeight: '800' }]}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </Text>
+          ))}
+        </View>
+
+        {/* Animated progress bar */}
+        <View style={tc_s.progressTrack}>
+          <Animated.View
+            style={[tc_s.progressFill, {
+              width: barWidth.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+              backgroundColor: tc.text,
+            }]}
+          />
+        </View>
+        <View style={tc_s.progressRow}>
+          <Text style={tc_s.progressHint}>
+            {nextLabel && pointsToNext != null
+              ? pointsToNext > 0 ? `${pointsToNext} pts to ${nextLabel}` : `${nextLabel} unlocked!`
+              : 'Max tier · Eagle'}
           </Text>
-          <Text style={tc_s.statLabel}>Accuracy</Text>
+          <View style={tc_s.pointsWrap}>
+            <Text style={[tc_s.pointsVal, { color: tc.text }]}>{points.toLocaleString()}</Text>
+            <Text style={tc_s.pointsUnit}> pts</Text>
+          </View>
         </View>
-        <View style={tc_s.statDivider} />
-        <View style={tc_s.statCell}>
-          <Text style={tc_s.statValue}>{acceptedReviews}</Text>
-          <Text style={tc_s.statLabel}>Reviews</Text>
+
+        {/* Streak */}
+        {streakDays != null && streakDays > 0 && (
+          <View style={tc_s.streakRow}>
+            <Ionicons name="flame" size={13} color={COLORS.warning} />
+            <Text style={tc_s.streakText}>{streakDays}-day contribution streak</Text>
+          </View>
+        )}
+
+        {/* Stats */}
+        <View style={tc_s.statsRow}>
+          <View style={tc_s.statCell}>
+            <Text style={tc_s.statVal}>{verifiedSpots}</Text>
+            <Text style={tc_s.statLbl}>Verified</Text>
+          </View>
+          <View style={tc_s.statDiv} />
+          <View style={tc_s.statCell}>
+            <Text style={tc_s.statVal}>
+              {accuracy != null ? `${Math.round(accuracy * 100)}%` : '—'}
+            </Text>
+            <Text style={tc_s.statLbl}>Accuracy</Text>
+          </View>
+          <View style={tc_s.statDiv} />
+          <View style={tc_s.statCell}>
+            <Text style={tc_s.statVal}>{acceptedReviews}</Text>
+            <Text style={tc_s.statLbl}>Reviews</Text>
+          </View>
         </View>
       </View>
     </View>
@@ -127,59 +272,177 @@ function TierCard({ tier, points, accuracy, verifiedSpots, acceptedReviews, stre
 
 const tc_s = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 16,
-    gap: 12,
+    borderRadius: 20,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  topRow: {
+
+  // ── Hero gradient ──
+  hero: {
+    alignItems: 'center',
+    paddingTop: 32,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    overflow: 'hidden',
+  },
+  shimmerStripe: {
+    position: 'absolute',
+    top: -60,
+    width: 55,
+    height: 400,
+    backgroundColor: 'rgba(255,255,255,0.30)',
+    transform: [{ rotate: '18deg' }],
+  },
+  birdWrap: {
+    width: 110,
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  glowRing: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+  },
+  birdImg: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+  },
+  tierName: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 3.5,
+    marginBottom: 3,
+  },
+  tierSub: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    marginBottom: 16,
+  },
+  perksRow: { flexDirection: 'row', gap: 8 },
+  perkPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  perkText: { fontSize: 12, fontWeight: '700' },
+
+  // ── Lower ──
+  lower: {
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 6,
+    gap: 10,
+  },
+
+  // Tier road
+  roadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  roadLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 2,
+  },
+  roadDot: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2.5,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roadImg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  roadLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginTop: -2,
+  },
+  roadLabel: {
+    width: 48,
+    textAlign: 'center',
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+
+  // Progress
+  progressTrack: {
+    height: 6,
+    backgroundColor: COLORS.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    minWidth: 4,
+  },
+  progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: -2,
   },
-  badge: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  badgeText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
-  pointsWrap: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
-  pointsNum: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  pointsLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
-  progressSection: { gap: 6 },
-  progressTrack: { height: 5, backgroundColor: COLORS.border, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 3, minWidth: 4 },
-  progressMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  progressLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
-  streakPill: {
+  progressHint: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  pointsWrap: { flexDirection: 'row', alignItems: 'baseline' },
+  pointsVal: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  pointsUnit: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+
+  // Streak
+  streakRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 5,
     backgroundColor: COLORS.warningLight,
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
     borderColor: COLORS.warningBorder,
+    marginTop: -2,
   },
-  streakText: { fontSize: 11, fontWeight: '700', color: COLORS.warningText },
+  streakText: { fontSize: 12, fontWeight: '700', color: COLORS.warningText },
+
+  // Stats
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 10,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
+    marginTop: 2,
+    marginBottom: 12,
   },
-  statCell: { flex: 1, alignItems: 'center', paddingVertical: 11 },
-  statValue: { fontSize: 17, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
-  statLabel: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
-  statDivider: { width: 1, height: 36, backgroundColor: COLORS.border },
+  statCell: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  statVal: { fontSize: 17, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
+  statLbl: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  statDiv: { width: 1, height: 36, backgroundColor: COLORS.border },
 });
 
 // ─── My Submissions Card ──────────────────────────────────────────────────────
