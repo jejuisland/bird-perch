@@ -11,10 +11,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
-    "lint": "turbo run lint",
-    "db:generate": "pnpm --filter @perch/api run db:generate",
-    "db:migrate": "pnpm --filter @perch/api run db:migrate",
-    "db:seed": "pnpm --filter @perch/api run db:seed"
+    "lint": "turbo run lint"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
