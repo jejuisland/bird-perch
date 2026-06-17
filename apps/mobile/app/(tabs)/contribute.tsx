@@ -20,7 +20,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { COLORS, GRADIENTS, SHADOWS } from '../../constants';
 import { useLocation } from '../../hooks/useLocation';
@@ -2702,15 +2701,7 @@ export default function ContributeScreen() {
       await Promise.all(
         newItems.map(async (item) => {
           try {
-            const { uploadUrl, storagePath } = await uploadsApi.createParkingPhotoUpload({
-              contentType: 'image/jpeg',
-              fileExt: 'jpg',
-            });
-            await uploadAsync(uploadUrl, item.uri, {
-              httpMethod: 'PUT',
-              uploadType: FileSystemUploadType.BINARY_CONTENT,
-              headers: { 'Content-Type': 'image/jpeg' },
-            });
+            const { storagePath } = await uploadsApi.uploadParkingPhoto(item.uri);
             setPhotos((prev) =>
               prev.map((p) =>
                 p.id === item.id ? { ...p, storagePath, uploading: false } : p,
@@ -2741,15 +2732,7 @@ export default function ContributeScreen() {
     if (!photo) return;
     setPhotos((prev) => prev.map((p) => p.id === id ? { ...p, uploading: true, error: false } : p));
     try {
-      const { uploadUrl, storagePath } = await uploadsApi.createParkingPhotoUpload({
-        contentType: 'image/jpeg',
-        fileExt: 'jpg',
-      });
-      await uploadAsync(uploadUrl, photo.uri, {
-        httpMethod: 'PUT',
-        uploadType: FileSystemUploadType.BINARY_CONTENT,
-        headers: { 'Content-Type': 'image/jpeg' },
-      });
+      const { storagePath } = await uploadsApi.uploadParkingPhoto(photo.uri);
       setPhotos((prev) => prev.map((p) => p.id === id ? { ...p, storagePath, uploading: false } : p));
     } catch (err: any) {
       console.warn('Photo retry failed:', err?.message ?? err);

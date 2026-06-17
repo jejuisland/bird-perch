@@ -4,7 +4,6 @@ import { API_BASE_URL } from '../constants';
 import type {
   CreateCommunityParkingSpotDto,
   CreateCommunityParkingSpotResponse,
-  CreateUploadUrlResponse,
   ContributorStats,
   ModerationQueueItem,
   ParkingSpot,
@@ -135,8 +134,13 @@ export const parkingApi = {
 };
 
 export const uploadsApi = {
-  createParkingPhotoUpload: (data: { contentType: string; fileExt?: string }) =>
-    apiClient.post('/uploads/parking-photo', data).then((r) => r.data as CreateUploadUrlResponse),
+  uploadParkingPhoto: (fileUri: string): Promise<{ storagePath: string; publicUrl: string }> => {
+    const formData = new FormData();
+    formData.append('file', { uri: fileUri, name: 'photo.jpg', type: 'image/jpeg' } as any);
+    return apiClient.post('/uploads/parking-photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data);
+  },
 };
 
 export const communityParkingApi = {
